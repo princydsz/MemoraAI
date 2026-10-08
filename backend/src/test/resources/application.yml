@@ -1,0 +1,37 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: memoraai-backend-test
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    database-platform: org.hibernate.dialect.H2Dialect
+
+jwt:
+  secret: memora_super_secret_jwt_key_2026_test_mode_32bytes_long
+  expiration-ms: 3600000
+
+ai:
+  service:
+    url: ${AI_SERVICE_URL:http://localhost:8000}
+
+qdrant:
+  host: ${QDRANT_HOST:localhost}
+  port: ${QDRANT_PORT:6333}
+  collection: ${QDRANT_COLLECTION:memories_test}
+  score-threshold: ${QDRANT_SCORE_THRESHOLD:0.35}
+
+logging:
+  level:
+    root: WARN
+    com.memoraai: INFO

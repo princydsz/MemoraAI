@@ -1,0 +1,39 @@
+server:
+  port: ${BACKEND_PORT:8080}
+
+spring:
+  application:
+    name: memoraai-backend
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:memora_db}
+    username: ${POSTGRES_USER:memora_user}
+    password: ${POSTGRES_PASSWORD:memora_password_dev}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+jwt:
+  secret: ${JWT_SECRET:memora_super_secret_jwt_key_2026_dev_mode}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+ai:
+  service:
+    url: ${AI_SERVICE_URL:http://localhost:8000}
+
+qdrant:
+  host: ${QDRANT_HOST:localhost}
+  port: ${QDRANT_PORT:6333}
+  collection: ${QDRANT_COLLECTION:memories_v2}
+  score-threshold: ${QDRANT_SCORE_THRESHOLD:0.35}
+
+logging:
+  level:
+    root: INFO
+    com.memoraai: DEBUG
