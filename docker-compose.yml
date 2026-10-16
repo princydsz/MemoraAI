@@ -65,6 +65,8 @@ services:
       - QDRANT_HOST=qdrant
       - DEMO_MODE=${DEMO_MODE:-true}
       - LLM_PROVIDER=${LLM_PROVIDER:-mock}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
     depends_on:
       - qdrant
 

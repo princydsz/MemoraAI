@@ -1,8 +1,16 @@
 package com.memoraai.service;
 
+
 import com.memoraai.dto.AiProcessMemoryResponse;
+
+import com.memoraai.dto.AskMemoryRequest;
+import com.memoraai.dto.AskMemoryResponse;
 import com.memoraai.dto.CreateMemoryRequest;
 import com.memoraai.dto.MemoryResponse;
+import com.memoraai.dto.MemorySearchResponse;
+import com.memoraai.dto.RagAnswerResponse;
+import com.memoraai.dto.ReindexResponse;
+import com.memoraai.dto.SourceMemoryResponse;
 import com.memoraai.dto.UpdateMemoryRequest;
 import com.memoraai.entity.Memory;
 import com.memoraai.entity.User;
@@ -13,17 +21,15 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import com.memoraai.dto.MemorySearchResponse;
-import com.memoraai.dto.ReindexResponse;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Map;
-
 @Service
+
 public class MemoryService {
 
     private final MemoryRepository memoryRepository;
@@ -152,6 +158,64 @@ public class MemoryService {
     }
 
     @Transactional(readOnly = true)
+    public AskMemoryResponse askQuestion(AskMemoryRequest request, String userEmail) {
+
+        User user = getAuthenticatedUser(userEmail);
+        if (request == null || request.getQuestion() == null || request.getQuestion().trim().isEmpty()) {
+            return new AskMemoryResponse("I don't have any memory recorded about that.", Collections.emptyList(), 0);
+        }
+
+        String question = request.getQuestion().trim();
+        List<VectorStoreService.VectorSearchResult> vectorResults = vectorStoreService.search(user.getId(), question, 20);
+        if (vectorResults.isEmpty()) {
+            return new AskMemoryResponse("I don't have any memory recorded about that.", Collections.emptyList(), 0);
+        }
+
+        List<UUID> memoryIds = vectorResults.stream()
+                .map(VectorStoreService.VectorSearchResult::getMemoryId)
+                .collect(Collectors.toList());
+
+        List<Memory> memories = memoryRepository.findAllByIdInAndUserId(memoryIds, user.getId());
+        if (memories.isEmpty()) {
+            return new AskMemoryResponse("I don't have any memory recorded about that.", Collections.emptyList(), 0);
+        }
+
+        Map<UUID, Memory> memoryMap = memories.stream()
+                .collect(Collectors.toMap(Memory::getId, m -> m));
+
+        List<Memory> validatedMemories = new ArrayList<>();
+        List<SourceMemoryResponse> sources = new ArrayList<>();
+
+        for (VectorStoreService.VectorSearchResult res : vectorResults) {
+            Memory memory = memoryMap.get(res.getMemoryId());
+            if (memory != null) {
+                validatedMemories.add(memory);
+                sources.add(SourceMemoryResponse.fromEntity(memory, res.getScore()));
+            }
+        }
+
+        if (validatedMemories.isEmpty()) {
+            return new AskMemoryResponse("I don't have any memory recorded about that.", Collections.emptyList(), 0);
+        }
+
+        String answer;
+        try {
+            RagAnswerResponse ragResponse = aiService.generateRagAnswer(question, validatedMemories);
+            answer = (ragResponse != null && ragResponse.getAnswer() != null)
+                    ? ragResponse.getAnswer()
+                    : "I don't have any memory recorded about that.";
+        } catch (Exception ex) {
+            String errorDetail = ex.getMessage();
+            if (errorDetail == null || errorDetail.trim().isEmpty()) {
+                errorDetail = "An error occurred while communicating with the AI service.";
+            }
+            answer = "AI generation unavailable: " + errorDetail;
+        }
+
+        return new AskMemoryResponse(answer, sources, sources.size());
+    }
+
+    @Transactional(readOnly = true)
     public ReindexResponse reindexUserMemories(String userEmail) {
         User user = getAuthenticatedUser(userEmail);
         List<Memory> memories = memoryRepository.findAllByUserIdOrderByCreatedAtDesc(user.getId());
@@ -163,3 +227,4 @@ public class MemoryService {
         return new ReindexResponse("Successfully re-indexed " + count + " memories into Qdrant", count);
     }
 }
+

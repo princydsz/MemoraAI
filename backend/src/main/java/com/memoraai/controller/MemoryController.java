@@ -1,5 +1,7 @@
 package com.memoraai.controller;
 
+
+
 import com.memoraai.dto.AiProcessMemoryResponse;
 import com.memoraai.dto.CreateMemoryRequest;
 import com.memoraai.dto.MemoryResponse;
@@ -15,8 +17,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import com.memoraai.dto.AskMemoryRequest;
+import com.memoraai.dto.AskMemoryResponse;
 import com.memoraai.dto.MemorySearchResponse;
 import com.memoraai.dto.ReindexResponse;
+
 
 @RestController
 @RequestMapping("/api/memories")
@@ -58,7 +63,15 @@ public class MemoryController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/{id}")
+    @PostMapping("/ask")
+    public ResponseEntity<AskMemoryResponse> askQuestion(
+            @Valid @RequestBody AskMemoryRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        AskMemoryResponse response = memoryService.askQuestion(request, userDetails.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}")
     public ResponseEntity<MemoryResponse> getMemory(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -66,7 +79,7 @@ public class MemoryController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}")
     public ResponseEntity<MemoryResponse> updateMemory(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateMemoryRequest request,
@@ -75,7 +88,7 @@ public class MemoryController {
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}")
     public ResponseEntity<Void> deleteMemory(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -83,7 +96,7 @@ public class MemoryController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{id}/process")
+    @PostMapping("/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}/process")
     public ResponseEntity<AiProcessMemoryResponse> processMemory(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -91,3 +104,6 @@ public class MemoryController {
         return ResponseEntity.ok(response);
     }
 }
+
+
+
