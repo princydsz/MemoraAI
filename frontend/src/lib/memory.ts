@@ -144,3 +144,20 @@ export async function reindexMemoriesApi(): Promise<import('../types/memory').Re
 
   return body as import('../types/memory').ReindexResult;
 }
+
+export async function askMemoryApi(question: string): Promise<import('../types/rag').AskMemoryResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/memories/ask`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ question }),
+  });
+
+  const body = await response.json();
+
+  if (!response.ok) {
+    throw new Error(body.message || 'Failed to answer question with Ask MemoraAI');
+  }
+
+  return body as import('../types/rag').AskMemoryResponse;
+}
+

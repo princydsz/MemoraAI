@@ -1,9 +1,14 @@
 package com.memoraai;
 
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.memoraai.dto.AiProcessMemoryResponse;
+import com.memoraai.dto.AskMemoryRequest;
+import com.memoraai.dto.AskMemoryResponse;
 import com.memoraai.dto.CreateMemoryRequest;
+import com.memoraai.dto.RagAnswerResponse;
 import com.memoraai.dto.UpdateMemoryRequest;
+
 import com.memoraai.entity.Memory;
 import com.memoraai.entity.Role;
 import com.memoraai.entity.User;
@@ -452,4 +457,106 @@ public class MemoryIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
     }
+
+    @Test
+    @DisplayName("23. Phase 7 Ask MemoraAI: Authenticated user asks question and receives grounded answer and source metadata")
+    void testAskMemories_Authenticated_Success() throws Exception {
+        Memory mem = memoryRepository.save(new Memory(userA, "Summer Vacation", "Rented a sailboat and went island hopping.", "Travel", "vacation,sailing"));
+
+        when(vectorStoreService.search(eq(userA.getId()), eq("What did I do during vacation?"), anyInt()))
+                .thenReturn(List.of(new VectorStoreService.VectorSearchResult(mem.getId(), 0.78)));
+
+        when(aiService.generateRagAnswer(eq("What did I do during vacation?"), any()))
+                .thenReturn(new RagAnswerResponse("Based on your recorded memories ('Summer Vacation': Rented a sailboat and went island hopping.), here is what I found.", "mock", "mock"));
+
+        AskMemoryRequest request = new AskMemoryRequest("What did I do during vacation?");
+
+        mockMvc.perform(post("/api/memories/ask")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answer", containsString("Summer Vacation")))
+                .andExpect(jsonPath("$.retrievedCount", is(1)))
+                .andExpect(jsonPath("$.sources[0].id", is(mem.getId().toString())))
+                .andExpect(jsonPath("$.sources[0].title", is("Summer Vacation")))
+                .andExpect(jsonPath("$.sources[0].similarityScore", is(0.78)));
+    }
+
+    @Test
+    @DisplayName("24. Phase 7 Ask MemoraAI: Unauthenticated request is rejected with 401/403")
+    void testAskMemories_Unauthenticated_Rejected() throws Exception {
+        AskMemoryRequest request = new AskMemoryRequest("What are my plans?");
+
+        mockMvc.perform(post("/api/memories/ask")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+
+    @Test
+    @DisplayName("25. Phase 7 Ask MemoraAI: No matching memories returns fallback message without invoking LLM")
+    void testAskMemories_NoMatchingMemories_Fallback() throws Exception {
+        when(vectorStoreService.search(eq(userA.getId()), eq("Where are my keys?"), anyInt()))
+                .thenReturn(List.of());
+
+        AskMemoryRequest request = new AskMemoryRequest("Where are my keys?");
+
+        mockMvc.perform(post("/api/memories/ask")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answer", is("I don't have any memory recorded about that.")))
+                .andExpect(jsonPath("$.retrievedCount", is(0)))
+                .andExpect(jsonPath("$.sources", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("26. Phase 7 Ask MemoraAI: Cross-user isolation prevents User A from retrieving User B's memories")
+    void testAskMemories_CrossUserIsolation() throws Exception {
+        Memory memB = memoryRepository.save(new Memory(userB, "User B Secret Trip", "User B went to Tokyo.", "Secret", "tokyo"));
+
+        // Simulate Qdrant incorrectly returning User B's memory ID for User A's search
+        when(vectorStoreService.search(eq(userA.getId()), eq("Tokyo trip"), anyInt()))
+                .thenReturn(List.of(new VectorStoreService.VectorSearchResult(memB.getId(), 0.90)));
+
+        AskMemoryRequest request = new AskMemoryRequest("Tokyo trip");
+
+        mockMvc.perform(post("/api/memories/ask")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answer", is("I don't have any memory recorded about that.")))
+                .andExpect(jsonPath("$.retrievedCount", is(0)))
+                .andExpect(jsonPath("$.sources", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("27. Phase 7 Ask MemoraAI: AI service failure clearly returns failure notice while preserving validated sources")
+    void testAskMemories_AiServiceFailure_PreservesSources() throws Exception {
+        Memory mem = memoryRepository.save(new Memory(userA, "Summer Vacation", "Rented a sailboat and went island hopping.", "Travel", "vacation,sailing"));
+
+        when(vectorStoreService.search(eq(userA.getId()), eq("What did I do during vacation?"), anyInt()))
+                .thenReturn(List.of(new VectorStoreService.VectorSearchResult(mem.getId(), 0.78)));
+
+        when(aiService.generateRagAnswer(any(), any()))
+                .thenThrow(new RuntimeException("Gemini API request failed with status code 429: Quota exceeded"));
+
+        AskMemoryRequest request = new AskMemoryRequest("What did I do during vacation?");
+
+        mockMvc.perform(post("/api/memories/ask")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answer", containsString("AI generation unavailable: Gemini API request failed with status code 429")))
+                .andExpect(jsonPath("$.retrievedCount", is(1)))
+                .andExpect(jsonPath("$.sources[0].id", is(mem.getId().toString())))
+                .andExpect(jsonPath("$.sources[0].title", is("Summer Vacation")))
+                .andExpect(jsonPath("$.sources[0].similarityScore", is(0.78)));
+    }
 }
+

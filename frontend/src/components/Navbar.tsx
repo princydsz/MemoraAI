@@ -76,6 +76,21 @@ export default function Navbar() {
               Memory Vault
             </Link>
             <Link
+              href="/ask"
+              style={{
+                color: '#0284c7',
+                textDecoration: 'none',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                padding: '0.45rem 0.75rem',
+                borderRadius: '8px',
+                backgroundColor: '#e0f2fe',
+              }}
+            >
+              Ask AI
+            </Link>
+
+            <Link
               href="/profile"
               style={{
                 color: '#334155',
