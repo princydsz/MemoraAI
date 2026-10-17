@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { AiProcessResult, Memory, MemorySearchResult } from '../../types/memory';
 import {
@@ -12,6 +12,13 @@ import {
   searchMemoriesApi,
   updateMemoryApi,
 } from '../../lib/memory';
+import MediaGallery from '../../components/media/MediaGallery';
+import {
+  formatFileSize,
+  MAX_MEDIA_PER_MEMORY,
+  uploadMemoryMediaApi,
+  validateMediaFiles,
+} from '../../lib/media';
 
 export default function MemoryVaultPage() {
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -48,6 +55,73 @@ export default function MemoryVaultPage() {
   const [category, setCategory] = useState('');
   const [tags, setTags] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Create Modal Media Attachment State
+  const [createFiles, setCreateFiles] = useState<File[]>([]);
+  const [createPreviews, setCreatePreviews] = useState<{ id: string; file: File; url: string }[]>([]);
+  const [pendingCreatedMemory, setPendingCreatedMemory] = useState<Memory | null>(null);
+  const [uploadStatusText, setUploadStatusText] = useState<string | null>(null);
+  const [isCreateDragging, setIsCreateDragging] = useState<boolean>(false);
+  const createFileInputRef = useRef<HTMLInputElement | null>(null);
+  const createPreviewsRef = useRef<{ id: string; file: File; url: string }[]>([]);
+  createPreviewsRef.current = createPreviews;
+
+  // Cleanup object URLs on unmount to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      createPreviewsRef.current.forEach((p) => URL.revokeObjectURL(p.url));
+    };
+  }, []);
+
+  const clearCreatePreviews = () => {
+    createPreviewsRef.current.forEach((p) => URL.revokeObjectURL(p.url));
+    setCreatePreviews([]);
+    setCreateFiles([]);
+    if (createFileInputRef.current) {
+      createFileInputRef.current.value = '';
+    }
+  };
+
+  const removeCreatePreview = (indexToRemove: number) => {
+    const item = createPreviews[indexToRemove];
+    if (item) {
+      URL.revokeObjectURL(item.url);
+    }
+    setCreatePreviews((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setCreateFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleCreateFilesSelected = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    setError(null);
+
+    const filesArray = Array.from(fileList);
+    const validation = validateMediaFiles(filesArray, createFiles.length);
+
+    if (!validation.valid) {
+      setError(validation.error || 'Selected files failed validation.');
+      if (createFileInputRef.current) createFileInputRef.current.value = '';
+      return;
+    }
+
+    const newPreviews = filesArray.map((file) => ({
+      id: `${Date.now()}-${Math.random()}-${file.name}`,
+      file,
+      url: URL.createObjectURL(file),
+    }));
+
+    setCreateFiles((prev) => [...prev, ...filesArray]);
+    setCreatePreviews((prev) => [...prev, ...newPreviews]);
+    if (createFileInputRef.current) createFileInputRef.current.value = '';
+  };
+
+  const closeCreateModal = () => {
+    if (isSubmitting) return; // Prevent closing while in-flight request
+    clearCreatePreviews();
+    setPendingCreatedMemory(null);
+    setUploadStatusText(null);
+    setIsCreateOpen(false);
+  };
 
   const fetchMemories = async () => {
     setIsLoading(true);
@@ -123,6 +197,9 @@ export default function MemoryVaultPage() {
     setCategory('');
     setTags('');
     setError(null);
+    clearCreatePreviews();
+    setPendingCreatedMemory(null);
+    setUploadStatusText(null);
     setIsCreateOpen(true);
   };
 
@@ -137,31 +214,61 @@ export default function MemoryVaultPage() {
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return; // Prevent duplicate submissions
+
     if (!title.trim() || !content.trim()) {
       setError('Title and content are required.');
       return;
     }
     setIsSubmitting(true);
     setError(null);
+
+    let memoryToUse = pendingCreatedMemory;
+
     try {
-      const newMemory = await createMemoryApi({
-        title: title.trim(),
-        content: content.trim(),
-        category: category.trim() || undefined,
-        tags: tags.trim() || undefined,
-      });
-      setMemories((prev) => [newMemory, ...prev]);
+      // Step 1: Create memory if not already created in a previous attempt
+      if (!memoryToUse) {
+        setUploadStatusText('Creating memory...');
+        const newMemory = await createMemoryApi({
+          title: title.trim(),
+          content: content.trim(),
+          category: category.trim() || undefined,
+          tags: tags.trim() || undefined,
+        });
+        memoryToUse = newMemory;
+        setPendingCreatedMemory(newMemory);
+        setMemories((prev) => [newMemory, ...prev]);
+      }
+
+      // Step 2: Upload attached images if any exist
+      if (createFiles.length > 0) {
+        setUploadStatusText(`Uploading ${createFiles.length} image${createFiles.length > 1 ? 's' : ''}...`);
+        await uploadMemoryMediaApi(memoryToUse.id, createFiles);
+      }
+
+      // Step 3: Success! Clean up and close modal
+      clearCreatePreviews();
+      setPendingCreatedMemory(null);
       setIsCreateOpen(false);
-      setSuccessMsg('Memory created successfully!');
+      setSuccessMsg(
+        createFiles.length > 0
+          ? 'Memory and attachments saved successfully!'
+          : 'Memory created successfully!'
+      );
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
+      const errMsg = err instanceof Error ? err.message : 'Operation failed.';
+      if (memoryToUse) {
+        // Memory exists, but image upload failed: retain created memory and files for retry
+        setError(
+          `Memory "${memoryToUse.title}" was saved, but uploading images failed: ${errMsg}. You can retry uploading your images below, or click Done to finish without images.`
+        );
       } else {
-        setError('Failed to create memory.');
+        setError(`Failed to create memory: ${errMsg}`);
       }
     } finally {
       setIsSubmitting(false);
+      setUploadStatusText(null);
     }
   };
 
@@ -244,40 +351,66 @@ export default function MemoryVaultPage() {
 
   const handleCreateAndAutoOrganize = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isSubmitting) return; // Prevent duplicate submissions
+
     if (!title.trim() || !content.trim()) {
       setError('Title and content are required.');
       return;
     }
     setIsSubmitting(true);
     setError(null);
+
+    let memoryToUse = pendingCreatedMemory;
+
     try {
-      // Step 1: Save memory to DB via existing API
-      const newMemory = await createMemoryApi({
-        title: title.trim(),
-        content: content.trim(),
-        category: category.trim() || undefined,
-        tags: tags.trim() || undefined,
-      });
-      setMemories((prev) => [newMemory, ...prev]);
+      // Step 1: Save memory to DB via existing API if not already created
+      if (!memoryToUse) {
+        setUploadStatusText('Creating memory...');
+        const newMemory = await createMemoryApi({
+          title: title.trim(),
+          content: content.trim(),
+          category: category.trim() || undefined,
+          tags: tags.trim() || undefined,
+        });
+        memoryToUse = newMemory;
+        setPendingCreatedMemory(newMemory);
+        setMemories((prev) => [newMemory, ...prev]);
+      }
+
+      // Step 2: Upload attached images if any exist
+      if (createFiles.length > 0) {
+        setUploadStatusText(`Uploading ${createFiles.length} image${createFiles.length > 1 ? 's' : ''}...`);
+        await uploadMemoryMediaApi(memoryToUse.id, createFiles);
+      }
+
+      // Clear preview URLs on successful upload
+      clearCreatePreviews();
+      setPendingCreatedMemory(null);
       setIsCreateOpen(false);
 
-      // Step 2: Call existing Phase 5 AI process endpoint
-      const result = await processMemoryApi(newMemory.id);
+      // Step 3: Call existing Phase 5 AI process endpoint
+      setUploadStatusText('Auto-organizing with AI...');
+      const result = await processMemoryApi(memoryToUse.id);
 
-      // Step 3: Open Review AI Suggestions modal with pre-filled AI suggestions
-      setCreatedReviewMemory(newMemory);
+      // Step 4: Open Review AI Suggestions modal with pre-filled AI suggestions
+      setCreatedReviewMemory(memoryToUse);
       setAiReviewResult(result);
-      setReviewCategory(result.suggestedCategory || newMemory.category || '');
-      setReviewTags(result.suggestedTags ? result.suggestedTags.join(', ') : (newMemory.tags || ''));
+      setReviewCategory(result.suggestedCategory || memoryToUse.category || '');
+      setReviewTags(result.suggestedTags ? result.suggestedTags.join(', ') : (memoryToUse.tags || ''));
 
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
+      const errMsg = err instanceof Error ? err.message : 'Operation failed.';
+      if (memoryToUse) {
+        // Memory exists, but image upload or AI organization failed
+        setError(
+          `Memory "${memoryToUse.title}" was saved, but an error occurred: ${errMsg}. You can retry uploading your images below, or click Done to finish.`
+        );
       } else {
-        setError('Failed to auto-organize memory with AI.');
+        setError(`Failed to auto-organize memory with AI: ${errMsg}`);
       }
     } finally {
       setIsSubmitting(false);
+      setUploadStatusText(null);
     }
   };
 
@@ -801,28 +934,50 @@ export default function MemoryVaultPage() {
             backgroundColor: '#ffffff',
             borderRadius: '16px',
             width: '100%',
-            maxWidth: '560px',
+            maxWidth: '580px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
             padding: '2rem',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
           }}>
-            <div style={{
-              backgroundColor: '#f0f9ff',
-              border: '1px solid #bae6fd',
-              borderRadius: '10px',
-              padding: '0.75rem 1rem',
-              marginBottom: '1.25rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.6rem',
-              fontSize: '0.85rem',
-              color: '#0369a1',
-            }}>
-              <span style={{ fontSize: '1.1rem' }}>✨</span>
-              <span><strong>MemoraAI Auto-Organize:</strong> Type your title & content, then click <em>"✨ Auto-Organize & Save"</em> to automatically receive AI category & tag suggestions.</span>
-            </div>
+            {pendingCreatedMemory ? (
+              <div style={{
+                backgroundColor: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: '10px',
+                padding: '0.75rem 1rem',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                fontSize: '0.85rem',
+                color: '#92400e',
+              }}>
+                <span style={{ fontSize: '1.1rem' }}>ℹ️</span>
+                <span>
+                  Memory <strong>"{pendingCreatedMemory.title}"</strong> is created. You can retry uploading your attached images below, or click <em>Done</em> to finish without attachments.
+                </span>
+              </div>
+            ) : (
+              <div style={{
+                backgroundColor: '#f0f9ff',
+                border: '1px solid #bae6fd',
+                borderRadius: '10px',
+                padding: '0.75rem 1rem',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                fontSize: '0.85rem',
+                color: '#0369a1',
+              }}>
+                <span style={{ fontSize: '1.1rem' }}>✨</span>
+                <span><strong>MemoraAI Auto-Organize:</strong> Type your title & content, then click <em>"✨ Auto-Organize & Save"</em> to automatically receive AI category & tag suggestions.</span>
+              </div>
+            )}
 
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', marginTop: 0, marginBottom: '1.25rem' }}>
-              Create a New Memory
+              {pendingCreatedMemory ? 'Upload Image Attachments' : 'Create a New Memory'}
             </h2>
 
             <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -833,6 +988,7 @@ export default function MemoryVaultPage() {
                 <input
                   type="text"
                   required
+                  disabled={isSubmitting || !!pendingCreatedMemory}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g., Grandfather's 80th Birthday Celebration"
@@ -844,6 +1000,7 @@ export default function MemoryVaultPage() {
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                     outline: 'none',
+                    backgroundColor: pendingCreatedMemory ? '#f8fafc' : '#ffffff',
                   }}
                 />
               </div>
@@ -854,6 +1011,7 @@ export default function MemoryVaultPage() {
                 </label>
                 <input
                   type="text"
+                  disabled={isSubmitting || !!pendingCreatedMemory}
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   placeholder="e.g., Family, Travel, Milestone"
@@ -865,6 +1023,7 @@ export default function MemoryVaultPage() {
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                     outline: 'none',
+                    backgroundColor: pendingCreatedMemory ? '#f8fafc' : '#ffffff',
                   }}
                 />
               </div>
@@ -875,6 +1034,7 @@ export default function MemoryVaultPage() {
                 </label>
                 <input
                   type="text"
+                  disabled={isSubmitting || !!pendingCreatedMemory}
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
                   placeholder="e.g., birthday, family, 2026"
@@ -886,6 +1046,7 @@ export default function MemoryVaultPage() {
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                     outline: 'none',
+                    backgroundColor: pendingCreatedMemory ? '#f8fafc' : '#ffffff',
                   }}
                 />
               </div>
@@ -896,7 +1057,8 @@ export default function MemoryVaultPage() {
                 </label>
                 <textarea
                   required
-                  rows={5}
+                  rows={4}
+                  disabled={isSubmitting || !!pendingCreatedMemory}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Write your story, memory details, or thoughts here..."
@@ -910,65 +1072,249 @@ export default function MemoryVaultPage() {
                     outline: 'none',
                     resize: 'vertical',
                     fontFamily: 'inherit',
+                    backgroundColor: pendingCreatedMemory ? '#f8fafc' : '#ffffff',
                   }}
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => setIsCreateOpen(false)}
-                  style={{
-                    backgroundColor: '#ffffff',
-                    color: '#475569',
-                    border: '1px solid #cbd5e1',
-                    padding: '0.6rem 1.1rem',
-                    borderRadius: '8px',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  style={{
-                    backgroundColor: '#ffffff',
-                    color: '#0284c7',
-                    border: '1px solid #0284c7',
-                    padding: '0.6rem 1.1rem',
-                    borderRadius: '8px',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  Save Manually
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateAndAutoOrganize}
-                  disabled={isSubmitting}
-                  style={{
-                    backgroundColor: isSubmitting ? '#94a3b8' : '#0284c7',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '0.6rem 1.25rem',
-                    borderRadius: '8px',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                  }}
-                >
-                  {isSubmitting ? 'Organizing...' : '✨ Auto-Organize & Save'}
-                </button>
+              {/* IMAGE ATTACHMENT SECTION */}
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
+                    Attach Images (Optional)
+                  </label>
+                  <span style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    backgroundColor: createFiles.length >= MAX_MEDIA_PER_MEMORY ? '#fee2e2' : '#e0f2fe',
+                    color: createFiles.length >= MAX_MEDIA_PER_MEMORY ? '#b91c1c' : '#0369a1',
+                    padding: '0.15rem 0.55rem',
+                    borderRadius: '9999px',
+                  }}>
+                    {createFiles.length} / {MAX_MEDIA_PER_MEMORY}
+                  </span>
+                </div>
+
+                {/* Drop / Select zone (when < 5) */}
+                {createFiles.length < MAX_MEDIA_PER_MEMORY && (
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (!isSubmitting) setIsCreateDragging(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsCreateDragging(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsCreateDragging(false);
+                      if (!isSubmitting) handleCreateFilesSelected(e.dataTransfer.files);
+                    }}
+                    onClick={() => !isSubmitting && createFileInputRef.current?.click()}
+                    style={{
+                      border: isCreateDragging ? '2px dashed #0284c7' : '2px dashed #cbd5e1',
+                      backgroundColor: isCreateDragging ? '#f0f9ff' : '#f8fafc',
+                      borderRadius: '8px',
+                      padding: '0.85rem',
+                      textAlign: 'center',
+                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s ease',
+                      marginBottom: createPreviews.length > 0 ? '0.75rem' : '0',
+                    }}
+                  >
+                    <input
+                      ref={createFileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                      disabled={isSubmitting}
+                      onChange={(e) => handleCreateFilesSelected(e.target.files)}
+                      style={{ display: 'none' }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '1.25rem' }}>📷</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0f172a' }}>
+                        Click or drag images to attach
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                        JPEG, PNG, or WEBP up to 10 MB each ({MAX_MEDIA_PER_MEMORY - createFiles.length} slot{MAX_MEDIA_PER_MEMORY - createFiles.length > 1 ? 's' : ''} remaining)
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Previews Grid */}
+                {createPreviews.length > 0 && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                    gap: '0.5rem',
+                    marginTop: '0.5rem',
+                  }}>
+                    {createPreviews.map((preview, idx) => (
+                      <div
+                        key={preview.id}
+                        style={{
+                          position: 'relative',
+                          backgroundColor: '#f1f5f9',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          border: '1px solid #e2e8f0',
+                          display: 'flex',
+                          flexDirection: 'column',
+                        }}
+                      >
+                        <div style={{ height: '75px', width: '100%', position: 'relative' }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={preview.url}
+                            alt={preview.file.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                          <button
+                            type="button"
+                            title="Remove image"
+                            disabled={isSubmitting}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeCreatePreview(idx);
+                            }}
+                            style={{
+                              position: 'absolute',
+                              top: '3px',
+                              right: '3px',
+                              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '50%',
+                              width: '20px',
+                              height: '20px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.7rem',
+                              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                              lineHeight: 1,
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <div style={{ padding: '0.3rem', fontSize: '0.7rem', color: '#334155' }}>
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                            {preview.file.name}
+                          </div>
+                          <div style={{ color: '#64748b' }}>
+                            {formatFileSize(preview.file.size)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {/* ACTION BUTTONS */}
+              {pendingCreatedMemory ? (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={closeCreateModal}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      color: '#475569',
+                      border: '1px solid #cbd5e1',
+                      padding: '0.6rem 1.1rem',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Done (Finish without images)
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || createFiles.length === 0}
+                    style={{
+                      backgroundColor: isSubmitting || createFiles.length === 0 ? '#94a3b8' : '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '0.6rem 1.25rem',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      cursor: isSubmitting || createFiles.length === 0 ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {isSubmitting ? (uploadStatusText || 'Uploading...') : 'Retry Uploading Images'}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={closeCreateModal}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      color: '#475569',
+                      border: '1px solid #cbd5e1',
+                      padding: '0.6rem 1.1rem',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      color: '#0284c7',
+                      border: '1px solid #0284c7',
+                      padding: '0.6rem 1.1rem',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {isSubmitting && uploadStatusText ? uploadStatusText : 'Save Manually'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCreateAndAutoOrganize}
+                    disabled={isSubmitting}
+                    style={{
+                      backgroundColor: isSubmitting ? '#94a3b8' : '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '0.6rem 1.25rem',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                    }}
+                  >
+                    {isSubmitting && uploadStatusText ? uploadStatusText : (
+                      <>
+                        <span>✨</span>
+                        <span>Auto-Organize & Save</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </form>
           </div>
         </div>
@@ -1306,7 +1652,9 @@ export default function MemoryVaultPage() {
             backgroundColor: '#ffffff',
             borderRadius: '16px',
             width: '100%',
-            maxWidth: '600px',
+            maxWidth: '680px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
             padding: '2rem',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
           }}>
@@ -1356,6 +1704,9 @@ export default function MemoryVaultPage() {
                 ))}
               </div>
             )}
+
+            {/* MULTIMEDIA VAULT GALLERY */}
+            <MediaGallery memoryId={viewingMemory.id} />
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
               <div style={{ display: 'flex', gap: '0.5rem' }}>

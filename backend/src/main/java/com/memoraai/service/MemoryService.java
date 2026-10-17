@@ -13,8 +13,10 @@ import com.memoraai.dto.ReindexResponse;
 import com.memoraai.dto.SourceMemoryResponse;
 import com.memoraai.dto.UpdateMemoryRequest;
 import com.memoraai.entity.Memory;
+import com.memoraai.entity.MemoryMedia;
 import com.memoraai.entity.User;
 import com.memoraai.exception.ResourceNotFoundException;
+import com.memoraai.repository.MemoryMediaRepository;
 import com.memoraai.repository.MemoryRepository;
 import com.memoraai.repository.UserRepository;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -36,15 +38,21 @@ public class MemoryService {
     private final UserRepository userRepository;
     private final AiService aiService;
     private final VectorStoreService vectorStoreService;
+    private final MemoryMediaRepository memoryMediaRepository;
+    private final StorageService storageService;
 
     public MemoryService(MemoryRepository memoryRepository,
                          UserRepository userRepository,
                          AiService aiService,
-                         VectorStoreService vectorStoreService) {
+                         VectorStoreService vectorStoreService,
+                         MemoryMediaRepository memoryMediaRepository,
+                         StorageService storageService) {
         this.memoryRepository = memoryRepository;
         this.userRepository = userRepository;
         this.aiService = aiService;
         this.vectorStoreService = vectorStoreService;
+        this.memoryMediaRepository = memoryMediaRepository;
+        this.storageService = storageService;
     }
 
     private User getAuthenticatedUser(String email) {
@@ -112,6 +120,13 @@ public class MemoryService {
 
         Memory memory = memoryRepository.findByIdAndUserId(memoryId, user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Memory not found with id: " + memoryId));
+
+        // Delete all associated MinIO objects before cascading metadata delete in PostgreSQL.
+        // If MinIO deletion fails, the exception aborts the transaction and preserves metadata in PostgreSQL.
+        List<MemoryMedia> mediaList = memoryMediaRepository.findAllByMemoryId(memoryId);
+        for (MemoryMedia media : mediaList) {
+            storageService.deleteObject(media.getS3Key());
+        }
 
         memoryRepository.delete(memory);
         vectorStoreService.deleteMemoryIndex(memoryId);

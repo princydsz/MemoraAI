@@ -86,6 +86,10 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-memora_password_dev}
       - NEO4J_HOST=neo4j
       - MINIO_HOST=minio
+      - MINIO_PORT=${MINIO_PORT:-9000}
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minio_admin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minio_password_dev}
+      - MINIO_BUCKET=${MINIO_BUCKET:-memora-media}
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - QDRANT_COLLECTION=memories_v2

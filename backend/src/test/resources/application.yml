@@ -31,6 +31,13 @@ qdrant:
   collection: ${QDRANT_COLLECTION:memories_test}
   score-threshold: ${QDRANT_SCORE_THRESHOLD:0.35}
 
+minio:
+  endpoint: http://localhost:9000
+  access-key: test_access_key
+  secret-key: test_secret_key
+  bucket-name: memora-media-test
+  bucket-init-enabled: false
+
 logging:
   level:
     root: WARN
