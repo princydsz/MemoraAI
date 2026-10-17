@@ -9,11 +9,23 @@ import { getMemoriesApi } from '../../lib/memory';
 export default function DashboardPage() {
   const { user, logout } = useAuth();
   const [memoryCount, setMemoryCount] = useState<number>(0);
+  const [categoryCount, setCategoryCount] = useState<number>(0);
+  const [taggedCount, setTaggedCount] = useState<number>(0);
 
   useEffect(() => {
     getMemoriesApi()
-      .then((mems) => setMemoryCount(mems.length))
-      .catch(() => setMemoryCount(0));
+      .then((mems) => {
+        setMemoryCount(mems.length);
+        const uniqueCategories = new Set(mems.map((m) => m.category).filter(Boolean));
+        setCategoryCount(uniqueCategories.size);
+        const tagged = mems.filter((m) => m.tags && m.tags.trim().length > 0).length;
+        setTaggedCount(tagged);
+      })
+      .catch(() => {
+        setMemoryCount(0);
+        setCategoryCount(0);
+        setTaggedCount(0);
+      });
   }, []);
 
   return (
@@ -81,6 +93,21 @@ export default function DashboardPage() {
                 }}
               >
                 Open Memory Vault
+              </Link>
+              <Link
+                href="/ask"
+                style={{
+                  backgroundColor: '#4f46e5',
+                  color: '#ffffff',
+                  textDecoration: 'none',
+                  padding: '0.55rem 1.1rem',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  boxShadow: '0 2px 4px rgba(79, 70, 229, 0.25)',
+                }}
+              >
+                Ask MemoraAI
               </Link>
               <Link
                 href="/profile"
@@ -172,7 +199,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Memory Metrics Overview */}
+          {/* Memory Metrics Overview — Backed by verified memory data */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
@@ -195,9 +222,9 @@ export default function DashboardPage() {
               borderRadius: '14px',
               border: '1px solid #e2e8f0',
             }}>
-              <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 600 }}>Storage Allocated</div>
-              <div style={{ fontSize: '2rem', fontWeight: 700, color: '#0f172a', marginTop: '0.35rem' }}>0 MB</div>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.35rem' }}>Limit: 5 GB Free Tier</div>
+              <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 600 }}>Active Categories</div>
+              <div style={{ fontSize: '2rem', fontWeight: 700, color: '#0f172a', marginTop: '0.35rem' }}>{categoryCount}</div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.35rem' }}>Auto-organized topics</div>
             </div>
 
             <div style={{
@@ -206,9 +233,9 @@ export default function DashboardPage() {
               borderRadius: '14px',
               border: '1px solid #e2e8f0',
             }}>
-              <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 600 }}>Family Connections</div>
-              <div style={{ fontSize: '2rem', fontWeight: 700, color: '#0f172a', marginTop: '0.35rem' }}>0</div>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.35rem' }}>Graph Vault: Ready</div>
+              <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 600 }}>Tagged Memories</div>
+              <div style={{ fontSize: '2rem', fontWeight: 700, color: '#0f172a', marginTop: '0.35rem' }}>{taggedCount}</div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.35rem' }}>Enriched with keywords</div>
             </div>
           </div>
 
@@ -222,6 +249,7 @@ export default function DashboardPage() {
               gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
               gap: '1.25rem',
             }}>
+              {/* Memory Vault Card */}
               <Link
                 href="/memories"
                 style={{
@@ -235,6 +263,7 @@ export default function DashboardPage() {
                   gap: '1rem',
                   textDecoration: 'none',
                   boxShadow: '0 2px 4px rgba(2, 132, 199, 0.1)',
+                  transition: 'box-shadow 0.2s ease, transform 0.2s ease',
                 }}
               >
                 <div>
@@ -254,44 +283,122 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.5rem', marginBottom: 0 }}>
-                    Create, view, edit, and manage your stored personal memories.
+                    Create, view, edit, attach images, and manage your stored personal memories.
                   </p>
                 </div>
               </Link>
 
-              {[
-                { title: 'Search Vault', desc: 'AI-assisted semantic memory retrieval and keyword lookup.', tag: 'Coming soon' },
-                { title: 'Voice Reflections', desc: 'Record audio memories with automated transcription.', tag: 'Coming soon' },
-                { title: 'Family Tree', desc: 'Map generations and share memories across relatives.', tag: 'Coming soon' },
-              ].map((action, idx) => (
-                <div key={idx} style={{
+              {/* Prominent Ask MemoraAI Card */}
+              <Link
+                href="/ask"
+                style={{
                   backgroundColor: '#ffffff',
                   padding: '1.5rem',
                   borderRadius: '14px',
-                  border: '1px solid #e2e8f0',
+                  border: '2px solid #6366f1',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                   gap: '1rem',
-                  opacity: 0.9,
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.15)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#4f46e5', margin: 0 }}>
+                      Ask MemoraAI
+                    </h3>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      backgroundColor: '#ede9fe',
+                      color: '#6d28d9',
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '9999px',
+                    }}>
+                      AI Grounded
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.5rem', marginBottom: 0 }}>
+                    Ask questions and receive answers synthesized strictly from your personal memories using RAG.
+                  </p>
+                </div>
+              </Link>
+
+              {/* Active Search Vault Card */}
+              <Link
+                href="/memories"
+                style={{
+                  backgroundColor: '#ffffff',
+                  padding: '1.5rem',
+                  borderRadius: '14px',
+                  border: '1px solid #cbd5e1',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  textDecoration: 'none',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.04)',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>
+                      Search Vault
+                    </h3>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      backgroundColor: '#dcfce7',
+                      color: '#15803d',
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '9999px',
+                    }}>
+                      Active
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.5rem', marginBottom: 0 }}>
+                    AI-assisted semantic vector retrieval and instant keyword search across all memories.
+                  </p>
+                </div>
+              </Link>
+
+              {/* Planned Future Roadmap Features */}
+              {[
+                { title: 'Voice Reflections', desc: 'Record audio memories with automated Whisper speech transcription.', tag: 'Roadmap' },
+                { title: 'Family Tree', desc: 'Map multi-generational relationships and share memories across relatives.', tag: 'Roadmap' },
+              ].map((action, idx) => (
+                <div key={idx} style={{
+                  backgroundColor: '#f8fafc',
+                  padding: '1.5rem',
+                  borderRadius: '14px',
+                  border: '1px dashed #cbd5e1',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  opacity: 0.85,
                 }}>
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#64748b', margin: 0 }}>
                         {action.title}
                       </h3>
                       <span style={{
                         fontSize: '0.7rem',
                         fontWeight: 600,
-                        backgroundColor: '#fef3c7',
-                        color: '#92400e',
+                        backgroundColor: '#f1f5f9',
+                        color: '#64748b',
                         padding: '0.15rem 0.5rem',
                         borderRadius: '9999px',
                       }}>
                         {action.tag}
                       </span>
                     </div>
-                    <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.5rem', marginBottom: 0 }}>
+                    <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.5rem', marginBottom: 0 }}>
                       {action.desc}
                     </p>
                   </div>
