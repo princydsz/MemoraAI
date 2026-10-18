@@ -1,19 +1,21 @@
 import os
 import unittest
+import json
 from unittest.mock import patch, MagicMock
 
 try:
     from fastapi.testclient import TestClient
-    from app.main import app, generate_embedding, GEMINI_MODEL, redact_sensitive_info, RagMemoryItem, extract_entities_deterministic
+    from app.main import app, generate_embedding, GEMINI_MODEL, redact_sensitive_info, RagMemoryItem, extract_entities_deterministic, httpx
     HAS_FASTAPI = True
     client = TestClient(app)
 except ImportError:
     HAS_FASTAPI = False
     client = None
     generate_embedding = None
-    GEMINI_MODEL = "gemini-3.8-flash"
+    GEMINI_MODEL = "gemini-2.5-flash"
     redact_sensitive_info = None
     RagMemoryItem = None
+    httpx = None
 
 class TestAiService(unittest.TestCase):
 
@@ -45,6 +47,16 @@ class TestAiService(unittest.TestCase):
         self.assertEqual(data["dimension"], 384)
         self.assertEqual(len(data["embedding"]), 384)
         self.assertEqual(data["model"], "sentence-transformers/all-MiniLM-L6-v2")
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    @patch("app.main.get_embedding_model")
+    def test_embedding_model_failure_is_not_returned_as_zero_vector(self, mock_get_model):
+        mock_get_model.side_effect = RuntimeError("model unavailable")
+
+        response = client.post("/embeddings", json={"text": "A real memory"})
+
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("Embedding model is unavailable", response.json()["detail"])
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     def test_process_memory_success(self):
@@ -106,23 +118,31 @@ class TestAiService(unittest.TestCase):
             response = client.post("/rag/answer", json=payload)
             self.assertEqual(response.status_code, 200)
             data = response.json()
-            self.assertEqual(data["answer"], "I don't have any memory recorded about that.")
+            self.assertIn("No personal memories were retrieved", data["answer"])
             self.assertEqual(data["provider"], "mock")
             self.assertEqual(data["model"], "mock")
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     def test_rag_answer_empty_memories_gemini_provider(self):
-        with patch.dict(os.environ, {"LLM_PROVIDER": "gemini"}):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": "General answer."}]}}]
+        }
+        with patch("app.main.httpx.Client") as mock_client_cls, \
+                patch.dict(os.environ, {"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "test-key"}):
+            mock_client_cls.return_value.__enter__.return_value.post.return_value = mock_response
             payload = {
-                "question": "Where is my passport?",
+                "question": "What causes a rainbow?",
                 "memories": []
             }
             response = client.post("/rag/answer", json=payload)
             self.assertEqual(response.status_code, 200)
             data = response.json()
-            self.assertEqual(data["answer"], "I don't have any memory recorded about that.")
+            self.assertEqual(data["answer"], "General answer.")
             self.assertEqual(data["provider"], "gemini")
-            self.assertEqual(data["model"], "gemini-3.8-flash")
+            self.assertEqual(data["model"], "gemini-2.5-flash")
+            self.assertEqual(mock_client_cls.return_value.__enter__.return_value.post.call_count, 1)
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     def test_rag_answer_prompt_injection_defense(self):
@@ -148,7 +168,7 @@ class TestAiService(unittest.TestCase):
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     def test_model_configuration(self):
-        self.assertEqual(GEMINI_MODEL, "gemini-3.8-flash")
+        self.assertEqual(GEMINI_MODEL, "gemini-2.5-flash")
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     def test_redact_sensitive_info_utility(self):
@@ -175,8 +195,19 @@ class TestAiService(unittest.TestCase):
                 "memories": [{"title": "Lunch", "content": "Ate pizza."}]
             }
             response = client.post("/rag/answer", json=payload)
-            self.assertEqual(response.status_code, 500)
-            self.assertIn("GEMINI_API_KEY environment variable is required", response.json()["detail"])
+            self.assertEqual(response.status_code, 503)
+            self.assertIn("GEMINI_API_KEY is not configured", response.json()["detail"])
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_rag_answer_rejects_unknown_provider_instead_of_using_mock(self):
+        with patch.dict(os.environ, {"LLM_PROVIDER": "gemni"}):
+            response = client.post("/rag/answer", json={
+                "question": "What happened?",
+                "memories": [{"title": "Note", "content": "A real event."}]
+            })
+
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("Unsupported LLM_PROVIDER", response.json()["detail"])
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     @patch("app.main.httpx.Client")
@@ -207,8 +238,17 @@ class TestAiService(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             data = response.json()
             self.assertEqual(data["provider"], "gemini")
-            self.assertEqual(data["model"], "gemini-3.8-flash")
+            self.assertEqual(data["model"], "gemini-2.5-flash")
             self.assertIn("Blue Bottle Cafe", data["answer"])
+            _, request_args = mock_client.post.call_args
+            user_content = json.loads(request_args["json"]["contents"][0]["parts"][0]["text"])
+            system_instruction = request_args["json"]["systemInstruction"]["parts"][0]["text"]
+            self.assertEqual(user_content["question"], "Where did I have coffee?")
+            self.assertEqual(
+                user_content["retrieved_personal_memories"][0]["content"],
+                "Met Alice at Blue Bottle Cafe."
+            )
+            self.assertIn("untrusted quoted data", system_instruction)
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     @patch("app.main.httpx.Client")
@@ -240,7 +280,12 @@ class TestAiService(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             data = response.json()
             self.assertEqual(data["answer"], "You bought a MacBook Pro in September.")
-            self.assertEqual(data["model"], "gemini-3.8-flash")
+            self.assertEqual(data["model"], "gemini-2.5-flash")
+            args, kwargs = mock_client.post.call_args
+            self.assertNotIn("dummy_test_key_123", args[0])
+            self.assertEqual(kwargs["headers"]["x-goog-api-key"], "dummy_test_key_123")
+            self.assertIn("systemInstruction", kwargs["json"])
+            self.assertIn("general-knowledge questions", kwargs["json"]["systemInstruction"]["parts"][0]["text"])
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     @patch("app.main.httpx.Client")
@@ -266,13 +311,46 @@ class TestAiService(unittest.TestCase):
                 "memories": [{"title": "Medical Record", "content": sensitive_memory}]
             }
             response = client.post("/rag/answer", json=payload)
-            self.assertEqual(response.status_code, 500)
+            self.assertEqual(response.status_code, 502)
             detail = response.json()["detail"]
-            self.assertIn("status code 404", detail)
+            self.assertIn("model 'gemini-2.5-flash' was not found", detail)
             self.assertNotIn(secret_key, detail)
             self.assertNotIn(sensitive_memory, detail)
-            self.assertIn("[REDACTED_API_KEY]", detail)
-            self.assertIn("[REDACTED_MEMORY_CONTENT]", detail)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    @patch("app.main.httpx.Client")
+    def test_rag_answer_gemini_authentication_failure_is_explicit(self, mock_client_cls):
+        mock_client = mock_client_cls.return_value.__enter__.return_value
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+        mock_response.json.return_value = {"error": {"message": "invalid key"}}
+        mock_response.text = "invalid key"
+        mock_client.post.return_value = mock_response
+
+        with patch.dict(os.environ, {"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "invalid-test-key"}):
+            response = client.post("/rag/answer", json={
+                "question": "Tell me something",
+                "memories": []
+            })
+
+        self.assertEqual(response.status_code, 502)
+        self.assertIn("Gemini authentication failed", response.json()["detail"])
+        self.assertNotIn("invalid-test-key", response.text)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    @patch("app.main.httpx.Client")
+    def test_rag_answer_gemini_timeout_is_explicit(self, mock_client_cls):
+        mock_client = mock_client_cls.return_value.__enter__.return_value
+        mock_client.post.side_effect = httpx.ReadTimeout("request timed out")
+
+        with patch.dict(os.environ, {"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "test-key"}):
+            response = client.post("/rag/answer", json={
+                "question": "Tell me something",
+                "memories": []
+            })
+
+        self.assertEqual(response.status_code, 504)
+        self.assertIn("Gemini request timed out", response.json()["detail"])
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     @patch("app.main.httpx.Client")
@@ -281,8 +359,8 @@ class TestAiService(unittest.TestCase):
         mock_client_cls.return_value.__enter__.return_value = mock_client
         secret_key = "my_private_gemini_token"
         sensitive_memory = "secret bank account number 987654321"
-        mock_client.post.side_effect = Exception(
-            f"Connection refused to https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={secret_key} with payload {sensitive_memory}"
+        mock_client.post.side_effect = httpx.ConnectError(
+            f"Connection refused to Gemini with key {secret_key} and payload {sensitive_memory}"
         )
 
         with patch.dict(os.environ, {"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": secret_key}):
@@ -291,13 +369,11 @@ class TestAiService(unittest.TestCase):
                 "memories": [{"title": "Bank Details", "content": sensitive_memory}]
             }
             response = client.post("/rag/answer", json=payload)
-            self.assertEqual(response.status_code, 500)
+            self.assertEqual(response.status_code, 502)
             detail = response.json()["detail"]
-            self.assertIn("Gemini API execution error", detail)
+            self.assertIn("Could not connect to Gemini", detail)
             self.assertNotIn(secret_key, detail)
             self.assertNotIn(sensitive_memory, detail)
-            self.assertIn("[REDACTED_API_KEY]", detail)
-            self.assertIn("[REDACTED_MEMORY_CONTENT]", detail)
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     @patch("app.main.httpx.Client")
@@ -316,9 +392,9 @@ class TestAiService(unittest.TestCase):
                 "memories": [{"title": "Plans", "content": "Visit Tokyo."}]
             }
             response = client.post("/rag/answer", json=payload)
-            self.assertEqual(response.status_code, 500)
+            self.assertEqual(response.status_code, 502)
             detail = response.json()["detail"]
-            self.assertIn("empty or invalid response structure", detail)
+            self.assertIn("empty answer", detail)
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     @patch("time.sleep")
@@ -365,7 +441,7 @@ class TestAiService(unittest.TestCase):
         mock_resp_429.json.return_value = {
             "error": {
                 "code": 429,
-                "message": "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash",
+                "message": "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash",
                 "status": "RESOURCE_EXHAUSTED"
             }
         }
@@ -378,10 +454,9 @@ class TestAiService(unittest.TestCase):
                 "memories": [{"title": "Note", "content": "Sample content."}]
             }
             response = client.post("/rag/answer", json=payload)
-            self.assertEqual(response.status_code, 500)
+            self.assertEqual(response.status_code, 502)
             detail = response.json()["detail"]
-            self.assertIn("status code 429", detail)
-            self.assertIn("Quota exceeded", detail)
+            self.assertIn("Gemini rate limit or quota was reached", detail)
             # Ensure no retry occurred for daily quota exhaustion
             self.assertEqual(mock_client.post.call_count, 1)
             mock_sleep.assert_not_called()

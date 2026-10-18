@@ -2,6 +2,7 @@ import './globals.css';
 import React from 'react';
 import { AuthProvider } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
+import VaultAssistant from '../components/VaultAssistant';
 
 export const metadata = {
   title: 'MemoraAI - Preserving Memories, Strengthening Connections',
@@ -19,6 +20,7 @@ export default function RootLayout({
         <AuthProvider>
           <Navbar />
           {children}
+          <VaultAssistant />
         </AuthProvider>
       </body>
     </html>

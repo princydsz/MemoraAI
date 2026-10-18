@@ -292,20 +292,15 @@ public class MemoryService {
         }
 
         String question = request.getQuestion().trim();
-        List<VectorStoreService.VectorSearchResult> vectorResults = vectorStoreService.search(user.getId(), question, 20);
-        if (vectorResults.isEmpty()) {
-            return new AskMemoryResponse("I don't have any memory recorded about that.", Collections.emptyList(), 0);
-        }
+        List<VectorStoreService.VectorSearchResult> vectorResults = vectorStoreService.search(user.getId(), question, 5);
 
         List<UUID> memoryIds = vectorResults.stream()
                 .map(VectorStoreService.VectorSearchResult::getMemoryId)
                 .collect(Collectors.toList());
 
-        List<Memory> memories = memoryRepository.findAllByIdInAndUserId(memoryIds, user.getId());
-        if (memories.isEmpty()) {
-            return new AskMemoryResponse("I don't have any memory recorded about that.", Collections.emptyList(), 0);
-        }
-
+        List<Memory> memories = memoryIds.isEmpty()
+                ? Collections.emptyList()
+                : memoryRepository.findAllByIdInAndUserId(memoryIds, user.getId());
         Map<UUID, Memory> memoryMap = memories.stream()
                 .collect(Collectors.toMap(Memory::getId, m -> m));
 
@@ -320,25 +315,14 @@ public class MemoryService {
             }
         }
 
-        if (validatedMemories.isEmpty()) {
-            return new AskMemoryResponse("I don't have any memory recorded about that.", Collections.emptyList(), 0);
-        }
-
-        String answer;
-        try {
-            RagAnswerResponse ragResponse = aiService.generateRagAnswer(question, validatedMemories);
-            answer = (ragResponse != null && ragResponse.getAnswer() != null)
-                    ? ragResponse.getAnswer()
-                    : "I don't have any memory recorded about that.";
-        } catch (Exception ex) {
-            String errorDetail = ex.getMessage();
-            if (errorDetail == null || errorDetail.trim().isEmpty()) {
-                errorDetail = "An error occurred while communicating with the AI service.";
-            }
-            answer = "AI generation unavailable: " + errorDetail;
-        }
-
-        return new AskMemoryResponse(answer, sources, sources.size());
+        RagAnswerResponse ragResponse = aiService.generateRagAnswer(question, validatedMemories);
+        return new AskMemoryResponse(
+                ragResponse.getAnswer(),
+                sources,
+                sources.size(),
+                ragResponse.getProvider(),
+                ragResponse.getModel()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -442,4 +426,3 @@ public class MemoryService {
         );
     }
 }
-
