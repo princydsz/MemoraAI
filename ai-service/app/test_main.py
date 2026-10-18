@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 
 try:
     from fastapi.testclient import TestClient
-    from app.main import app, generate_embedding, GEMINI_MODEL, redact_sensitive_info, RagMemoryItem
+    from app.main import app, generate_embedding, GEMINI_MODEL, redact_sensitive_info, RagMemoryItem, extract_entities_deterministic
     HAS_FASTAPI = True
     client = TestClient(app)
 except ImportError:
@@ -385,6 +385,71 @@ class TestAiService(unittest.TestCase):
             # Ensure no retry occurred for daily quota exhaustion
             self.assertEqual(mock_client.post.call_count, 1)
             mock_sleep.assert_not_called()
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_extract_entities_people_and_places(self):
+        title = "Family Vacation"
+        content = "Yesterday had dinner with Sarah and Uncle Bob in Paris near Central Park. Mom visited us at Lake Tahoe."
+        people, places = extract_entities_deterministic(title, content)
+        self.assertIn("Sarah", people)
+        self.assertIn("Uncle Bob", people)
+        self.assertIn("Mom", people)
+        self.assertIn("Paris", places)
+        self.assertIn("Lake Tahoe", places)
+        self.assertIn("Central Park", places)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_extract_entities_titles_and_kinship(self):
+        content = "Met Dr. Watson and Aunt May for afternoon coffee."
+        people, places = extract_entities_deterministic("", content)
+        self.assertIn("Dr. Watson", people)
+        self.assertIn("Aunt May", people)
+        self.assertEqual(places, [])
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_extract_entities_empty_input(self):
+        people, places = extract_entities_deterministic("", "")
+        self.assertEqual(people, [])
+        self.assertEqual(places, [])
+
+        response = client.post("/extract-entities", json={"title": "", "content": ""})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["people"], [])
+        self.assertEqual(data["places"], [])
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_extract_entities_ordinary_sentences_no_false_positives(self):
+        content = "Yesterday was a rainy day with lots of coding. Running in the morning is great."
+        people, places = extract_entities_deterministic("Coding Day", content)
+        self.assertEqual(people, [])
+        self.assertEqual(places, [])
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_extract_entities_sentence_starters_not_extracted_as_people(self):
+        content = "Finally we managed to finish the report on Monday."
+        people, places = extract_entities_deterministic("", content)
+        self.assertEqual(people, [])
+        self.assertEqual(places, [])
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_extract_entities_deduplication_and_normalization(self):
+        content = "Visited Paris. Paris was beautiful with Sarah and Sarah."
+        people, places = extract_entities_deterministic("", content)
+        self.assertEqual(people, ["Sarah"])
+        self.assertEqual(places, ["Paris"])
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_extract_entities_endpoint(self):
+        payload = {
+            "title": "Trip to Rome",
+            "content": "Traveled to Rome with my friend David. Visited the Colosseum."
+        }
+        response = client.post("/extract-entities", json=payload)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("David", data["people"])
+        self.assertIn("Rome", data["places"])
 
 if __name__ == "__main__":
     unittest.main()

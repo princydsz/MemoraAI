@@ -45,6 +45,12 @@ minio:
   bucket-name: ${MINIO_BUCKET:memora-media}
   bucket-init-enabled: ${MINIO_BUCKET_INIT_ENABLED:true}
 
+neo4j:
+  uri: ${NEO4J_URI:bolt://${NEO4J_HOST:localhost}:${NEO4J_BOLT_PORT:7687}}
+  username: ${NEO4J_USER:neo4j}
+  password: ${NEO4J_PASSWORD:memora_neo4j_dev}
+  schema-init-enabled: ${NEO4J_SCHEMA_INIT_ENABLED:true}
+
 logging:
   level:
     root: INFO

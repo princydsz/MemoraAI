@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import time
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import httpx
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -96,6 +96,14 @@ class RagAnswerResponse(BaseModel):
     answer: str
     provider: str
     model: str
+
+class ExtractEntitiesRequest(BaseModel):
+    title: Optional[str] = Field(default="", description="Memory title")
+    content: Optional[str] = Field(default="", description="Memory content")
+
+class ExtractEntitiesResponse(BaseModel):
+    people: List[str] = Field(default_factory=list, description="Extracted person names")
+    places: List[str] = Field(default_factory=list, description="Extracted place names")
 
 
 EMBEDDING_DIM = 384
@@ -221,6 +229,128 @@ def process_memory(request: ProcessMemoryRequest):
         suggestedCategory=suggested_category,
         suggestedTags=extracted_tags
     )
+
+COMMON_PLACES = {
+    "paris": "Paris", "london": "London", "tokyo": "Tokyo", "new york": "New York",
+    "rome": "Rome", "berlin": "Berlin", "san francisco": "San Francisco",
+    "sydney": "Sydney", "toronto": "Toronto", "dubai": "Dubai", "singapore": "Singapore",
+    "goa": "Goa", "hawaii": "Hawaii", "california": "California",
+    "italy": "Italy", "france": "France", "japan": "Japan", "spain": "Spain",
+    "germany": "Germany", "india": "India", "canada": "Canada", "australia": "Australia",
+    "switzerland": "Switzerland", "greece": "Greece", "mexico": "Mexico", "brazil": "Brazil",
+    "chicago": "Chicago", "seattle": "Seattle", "boston": "Boston", "miami": "Miami",
+    "venice": "Venice", "amsterdam": "Amsterdam", "barcelona": "Barcelona", "kyoto": "Kyoto",
+    "bali": "Bali", "tahoe": "Lake Tahoe", "yellowstone": "Yellowstone"
+}
+
+GENERIC_STOPWORDS = {
+    "the", "this", "that", "there", "here", "when", "where", "why", "how", "what",
+    "today", "yesterday", "tomorrow", "suddenly", "finally", "meanwhile", "after",
+    "before", "during", "once", "every", "some", "all", "many", "most", "we", "they",
+    "you", "our", "my", "his", "her", "its", "their", "it", "if", "because", "although",
+    "since", "so", "then", "now", "just", "also", "even", "always", "never", "great",
+    "good", "amazing", "lovely", "beautiful", "new", "old", "first", "last", "lots",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "january", "february", "march", "april", "june", "july", "august", "september",
+    "october", "november", "december", "memory", "memoraai", "photo", "trip", "vacation",
+    "dinner", "lunch", "breakfast", "coffee", "flight", "train", "work", "job", "project",
+    "house", "home", "office", "school", "college", "university", "day", "time", "year",
+    "week", "month", "morning", "afternoon", "evening", "night", "coding", "running",
+    "report", "presentation", "meeting", "walk", "walked", "walking",
+    "mr", "mrs", "ms", "dr", "prof", "uncle", "aunt", "cousin"
+}
+
+def clean_entity(name: str) -> str:
+    cleaned = re.sub(r'^[^\w]+|[^\w]+$', '', name.strip())
+    return ' '.join(cleaned.split())
+
+def extract_entities_deterministic(title: Optional[str], content: Optional[str]) -> Tuple[List[str], List[str]]:
+    """
+    Conservative, deterministic heuristic extraction of mentioned people and places.
+
+    LIMITATION NOTICE: This heuristic extraction uses title/honorific cues, kinship terms,
+    relational prepositions, and geographic landmark indicators. It operates offline and
+    without external LLM dependencies. It is not equivalent to a fully trained neural NER model
+    and may not capture uncommon proper names or non-English grammatical structures.
+    """
+    title_text = (title or "").strip()
+    content_text = (content or "").strip()
+    full_text = f"{title_text}. {content_text}" if title_text else content_text
+    if not full_text.strip():
+        return [], []
+
+    people: List[str] = []
+    places: List[str] = []
+
+    # 1. People with explicit title/honorific (e.g. Dr. Watson, Prof. Higgins)
+    title_matches = re.findall(r'\b((?:Mr|Mrs|Ms|Dr|Prof)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b', full_text)
+    for m in title_matches:
+        c = clean_entity(m)
+        if c.lower() not in GENERIC_STOPWORDS:
+            people.append(c)
+
+    # 2. Familial title matches (e.g. Uncle Bob, Aunt May, Cousin Charlie)
+    rel_title_matches = re.findall(r'\b((?:Uncle|Aunt|Grandma|Grandpa|Grandmother|Grandfather|Cousin)\s+[A-Z][a-z]+)\b', full_text)
+    for m in rel_title_matches:
+        people.append(clean_entity(m))
+
+    # 3. Standalone familial proper nouns (Mom, Dad, Grandma, Grandpa, Nana, Papa)
+    fam_matches = re.findall(r'\b(Mom|Dad|Grandma|Grandpa|Nana|Papa)\b', full_text)
+    for m in fam_matches:
+        people.append(m)
+
+    # 4. Relational cue words (with / met / visited / called / helped / saw / friend / sister / brother / etc.)
+    cue_matches = re.findall(r'\b(?:with|met|visited|called|helped|saw|friend|sister|brother|daughter|son|wife|husband|colleague)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b', full_text)
+    for m in cue_matches:
+        c = clean_entity(m)
+        lower = c.lower()
+        if lower not in GENERIC_STOPWORDS and lower not in COMMON_PLACES and not any(w in lower for w in ['park', 'lake', 'beach', 'tower', 'hotel', 'museum', 'bridge', 'valley', 'mountain']):
+            people.append(c)
+
+    # Places
+    # Common dictionary locations
+    for key, display_name in COMMON_PLACES.items():
+        if re.search(r'\b' + re.escape(key) + r'\b', full_text, re.IGNORECASE):
+            places.append(display_name)
+
+    # Multi-word landmarks (e.g. Central Park, Lake Tahoe, Eiffel Tower)
+    landmarks = re.findall(r'\b([A-Z][a-z]+\s+(?:Park|Lake|Beach|Mountain|Mount|Valley|River|Tower|Bridge|Square|Station|Airport|Island|Hotel|Resort|Museum|Castle))\b', full_text)
+    for lm in landmarks:
+        places.append(clean_entity(lm))
+
+    lake_mount = re.findall(r'\b((?:Lake|Mount|Mt\.)\s+[A-Z][a-z]+)\b', full_text)
+    for lm in lake_mount:
+        places.append(clean_entity(lm))
+
+    # Deduplicate while preserving order and clean Title Case
+    def dedup(items: List[str]) -> List[str]:
+        seen = set()
+        res = []
+        for x in items:
+            k = x.lower()
+            if k not in seen and len(x) > 1:
+                seen.add(k)
+                res.append(x)
+        final_res = []
+        for item in res:
+            item_lower = item.lower()
+            if " " not in item_lower and any(item_lower in other.lower().split() for other in res if other.lower() != item_lower):
+                continue
+            final_res.append(item)
+        return final_res
+
+    cleaned_people = dedup(people)
+    cleaned_places = [p for p in dedup(places) if p.lower() not in {x.lower() for x in cleaned_people}]
+
+    return cleaned_people, cleaned_places
+
+@app.post("/extract-entities", response_model=ExtractEntitiesResponse, status_code=status.HTTP_200_OK)
+def extract_entities(request: ExtractEntitiesRequest):
+    """
+    Extracts mentioned people and places from memory title and content deterministically.
+    """
+    people, places = extract_entities_deterministic(request.title, request.content)
+    return ExtractEntitiesResponse(people=people, places=places)
 
 @app.post("/rag/answer", response_model=RagAnswerResponse, status_code=status.HTTP_200_OK)
 def generate_rag_answer(request: RagAnswerRequest):

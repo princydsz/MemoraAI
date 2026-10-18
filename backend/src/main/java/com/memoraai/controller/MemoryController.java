@@ -19,6 +19,8 @@ import java.util.UUID;
 
 import com.memoraai.dto.AskMemoryRequest;
 import com.memoraai.dto.AskMemoryResponse;
+import com.memoraai.dto.GraphReindexResponse;
+import com.memoraai.dto.MemoryGraphResponse;
 import com.memoraai.dto.MemorySearchResponse;
 import com.memoraai.dto.ReindexResponse;
 
@@ -46,6 +48,23 @@ public class MemoryController {
             @AuthenticationPrincipal UserDetails userDetails) {
         List<MemoryResponse> responses = memoryService.getUserMemories(userDetails.getUsername());
         return ResponseEntity.ok(responses);
+    }
+
+    @GetMapping("/graph")
+    public ResponseEntity<MemoryGraphResponse> getGraph(
+            @RequestParam(name = "limit", required = false, defaultValue = "100") int limit,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        MemoryGraphResponse response = memoryService.getGraph(userDetails.getUsername(), limit);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/graph/reindex")
+    public ResponseEntity<GraphReindexResponse> reindexGraph(
+            @RequestParam(name = "page", required = false, defaultValue = "0") int page,
+            @RequestParam(name = "batchSize", required = false, defaultValue = "50") int batchSize,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        GraphReindexResponse response = memoryService.reindexUserGraph(userDetails.getUsername(), page, batchSize);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/search")

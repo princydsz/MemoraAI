@@ -68,12 +68,12 @@ To maintain architectural transparency, system capabilities are classified as ei
 | Feature / Service | Planned Technology | Intended Role | Current Status |
 | :--- | :--- | :--- | :--- |
 | **Voice Ingestion** | OpenAI Whisper / FastAPI | Transcribes audio recordings into text memories | **Planned Roadmap** |
-| **Knowledge Graph** | Neo4j 5, Spring Data Neo4j | Multi-generational entity and relationship graph | **Planned Roadmap** *(Container provisioned)* |
+| **Knowledge Graph** | Neo4j 5 Java Driver, Cypher | Entity and relationship memory knowledge graph | **Implemented (Phase 10)** |
 | **Confidence Scoring**| Algorithmic Pipeline | Automated software consistency and family confirmation score | **Planned Roadmap** |
 | **Family Timelines** | Next.js, WebSockets | Multi-user collaborative vault and caregiver timeline trends | **Planned Roadmap** |
 
-> **Important Architecture Note on Neo4j:**
-> A `neo4j:5.15.0` container is declared in `docker-compose.yml` to prepare the execution environment. However, Spring Boot does not currently maintain active Neo4j repositories or entities. Neo4j graph schemas, family relationship traversal, and Cypher queries are roadmap items for subsequent development phases.
+> **Architecture Note on Neo4j (Phase 10 Implementation):**
+> Spring Boot integrates Neo4j 5.15.0 via the official Neo4j Java Driver with parameterized Cypher queries. The graph model anchors user ownership through `(:User)-[:OWNS]->(:Memory)` and connects memories to categories (`IN_CATEGORY`), user-scoped tags (`HAS_TAG`), and extracted people (`MENTIONS`) and places (`LOCATED_AT`). Graph synchronization executes after PostgreSQL transaction commit. Historical backfill and reconciliation are provided via `POST /api/memories/graph/reindex`, and graph retrieval is exposed via `GET /api/memories/graph`. Future phases will expand this model to include cross-user family relationship traversals and frontend visualization.
 
 ---
 

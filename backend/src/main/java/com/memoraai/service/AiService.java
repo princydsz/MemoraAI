@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.memoraai.dto.AiProcessMemoryRequest;
 import com.memoraai.dto.AiProcessMemoryResponse;
 import com.memoraai.dto.EmbeddingResponse;
+import com.memoraai.dto.EntityExtractionRequest;
+import com.memoraai.dto.EntityExtractionResponse;
 import com.memoraai.dto.RagAnswerRequest;
 import com.memoraai.dto.RagAnswerResponse;
 import com.memoraai.entity.Memory;
@@ -19,8 +21,10 @@ import org.springframework.web.client.RestTemplate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class AiService {
@@ -65,6 +69,54 @@ public class AiService {
             // Fallback for tests or if AI service is temporarily unreachable
         }
         return Collections.emptyList();
+    }
+
+    public EntityExtractionResponse extractEntities(String title, String content) {
+        if (content == null || content.trim().isEmpty()) {
+            return new EntityExtractionResponse(Collections.emptyList(), Collections.emptyList());
+        }
+
+        String url = aiServiceUrl + "/extract-entities";
+        EntityExtractionRequest request = new EntityExtractionRequest(
+                title != null ? title.trim() : "",
+                content.trim()
+        );
+
+        try {
+            EntityExtractionResponse response = restTemplate.postForObject(url, request, EntityExtractionResponse.class);
+            if (response != null) {
+                return new EntityExtractionResponse(
+                        normalizeEntityNames(response.getPeople()),
+                        normalizeEntityNames(response.getPlaces())
+                );
+            }
+        } catch (Exception ex) {
+            log.warn("AI service entity extraction failed or was unreachable: {}", ex.getMessage());
+        }
+
+        return new EntityExtractionResponse(Collections.emptyList(), Collections.emptyList());
+    }
+
+    private List<String> normalizeEntityNames(List<String> rawNames) {
+        if (rawNames == null || rawNames.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> normalized = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (String name : rawNames) {
+            if (name == null) {
+                continue;
+            }
+            String cleaned = name.trim();
+            if (!cleaned.isEmpty() && cleaned.length() <= 100 && !cleaned.matches(".*[\\p{Cntrl}].*")) {
+                String lower = cleaned.toLowerCase();
+                if (!seen.contains(lower)) {
+                    seen.add(lower);
+                    normalized.add(cleaned);
+                }
+            }
+        }
+        return normalized;
     }
 
     public RagAnswerResponse generateRagAnswer(String question, List<Memory> memories) {

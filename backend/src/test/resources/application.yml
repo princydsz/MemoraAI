@@ -38,6 +38,12 @@ minio:
   bucket-name: memora-media-test
   bucket-init-enabled: false
 
+neo4j:
+  uri: bolt://localhost:7687
+  username: neo4j
+  password: test_neo4j_password
+  schema-init-enabled: false
+
 logging:
   level:
     root: WARN

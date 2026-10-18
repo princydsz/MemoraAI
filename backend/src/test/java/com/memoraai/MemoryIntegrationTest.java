@@ -16,6 +16,7 @@ import com.memoraai.repository.MemoryRepository;
 import com.memoraai.repository.UserRepository;
 import com.memoraai.security.JwtService;
 import com.memoraai.service.AiService;
+import com.memoraai.service.GraphStoreService;
 import com.memoraai.service.VectorStoreService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -70,6 +71,9 @@ public class MemoryIntegrationTest {
 
     @MockBean
     private VectorStoreService vectorStoreService;
+
+    @MockBean
+    private GraphStoreService graphStoreService;
 
     private User userA;
     private User userB;

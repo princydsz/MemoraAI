@@ -48,7 +48,13 @@ MemoraAI distinguishes between **implemented core capabilities** (verified in th
    - Built with Next.js 14 (App Router, TypeScript, CSS).
    - Authenticated dashboard with live metrics (Total Memories, Active Categories, Tagged Memories) backed by verified API data.
    - Interactive memory gallery with full-size preview modal.
-   - Dedicated Ask MemoraAI portal (`/ask`) with example prompts and cited memory context.
+8. **Knowledge Graph Integration (Phase 10):**
+   - Neo4j 5.15.0 graph database integration using the official Neo4j Java Driver and parameterized Cypher queries.
+   - Deterministic entity extraction (`POST /extract-entities` on `ai-service`) for conservative recognition of people and places without requiring external LLM dependencies.
+   - Transactional after-commit synchronization connecting memories to categories, user-scoped tags, extracted people, and places.
+   - Cascade graph cleanup on memory deletion and orphan entity pruning.
+   - Secure, tenant-isolated knowledge graph API (`GET /api/memories/graph`) returning strongly typed nodes and relationships.
+   - Authenticated historical backfill and reconciliation endpoint (`POST /api/memories/graph/reindex`) with bounded batch pagination.
 
 ---
 
@@ -58,9 +64,8 @@ The following capabilities represent the expanded project vision and are activel
 
 - **🎙️ Whisper Speech-to-Text & Audio Ingestion:**
   Automated voice recording upload, speech transcription via OpenAI Whisper, and automatic ingestion into structured memories.
-- **🕸️ Neo4j Knowledge Graph Integration:**
-  Multi-generational family tree mapping and relational knowledge graph linking people, places, and events across life memories.
-  > *Note: The Neo4j container is provisioned in `docker-compose.yml` to prepare the infrastructure environment; however, backend graph schema, OGM/repositories, and graph querying are planned roadmap items and not yet integrated into the active application logic.*
+- **🕸️ Interactive Graph Visualization & Family Relationship Mapping:**
+  Frontend visual graph explorer and multi-generational family tree mapping connecting relatives across collaborative vaults.
 - **📊 Memory Confidence Scoring:**
   An algorithmic software score (0–100%) measuring memory consistency across conversations, detail alignment, and family member confirmations.
 - **👨‍👩‍👧 Family & Caregiver Sharing & Timelines:**
@@ -78,7 +83,7 @@ MemoraAI uses a resilient multi-service architecture orchestrated via Docker Com
 - **Relational Database:** PostgreSQL 15
 - **Vector Database:** Qdrant (384-dimensional dense embeddings, Cosine distance)
 - **Object Storage:** MinIO (Local S3-compatible storage with `mc` readiness checks)
-- **Knowledge Graph Database:** Neo4j 5 *(Infrastructure provisioned for future roadmap)*
+- **Knowledge Graph Database:** Neo4j 5 (Neo4j Community 5.15.0, official Java Driver, parameterized Cypher memory graph)
 
 ---
 
