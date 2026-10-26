@@ -29,7 +29,7 @@ qdrant:
   host: ${QDRANT_HOST:localhost}
   port: ${QDRANT_PORT:6333}
   collection: ${QDRANT_COLLECTION:memories_test}
-  score-threshold: ${QDRANT_SCORE_THRESHOLD:0.35}
+  score-threshold: ${QDRANT_SCORE_THRESHOLD:0.20}
 
 minio:
   endpoint: http://localhost:9000

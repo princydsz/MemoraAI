@@ -10,6 +10,7 @@ import com.memoraai.dto.EntityExtractionResponse;
 import com.memoraai.dto.RagAnswerRequest;
 import com.memoraai.dto.RagAnswerResponse;
 import com.memoraai.entity.Memory;
+import com.memoraai.exception.AiServiceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,7 +54,7 @@ public class AiService {
 
     public List<Double> generateEmbedding(String text) {
         if (text == null || text.trim().isEmpty()) {
-            return Collections.emptyList();
+            throw new AiServiceException("Embedding text cannot be blank.");
         }
 
         String url = aiServiceUrl + "/embeddings";
@@ -62,13 +63,19 @@ public class AiService {
 
         try {
             EmbeddingResponse response = restTemplate.postForObject(url, request, EmbeddingResponse.class);
-            if (response != null && response.getEmbedding() != null) {
-                return response.getEmbedding();
+            if (response == null || response.getEmbedding() == null
+                    || response.getEmbedding().size() != 384
+                    || response.getDimension() != 384
+                    || response.getEmbedding().stream().anyMatch(value -> value == null || !Double.isFinite(value))
+                    || response.getEmbedding().stream().allMatch(value -> value == 0.0)) {
+                throw new AiServiceException("Embedding service returned an invalid vector.");
             }
-        } catch (Exception e) {
-            // Fallback for tests or if AI service is temporarily unreachable
+            return response.getEmbedding();
+        } catch (AiServiceException ex) {
+            throw ex;
+        } catch (RestClientException ex) {
+            throw new AiServiceException("Embedding service is unavailable.", ex);
         }
-        return Collections.emptyList();
     }
 
     public EntityExtractionResponse extractEntities(String title, String content) {
@@ -136,17 +143,21 @@ public class AiService {
 
         RagAnswerRequest request = new RagAnswerRequest(question, memoryItems);
         try {
-            return restTemplate.postForObject(url, request, RagAnswerResponse.class);
+            RagAnswerResponse response = restTemplate.postForObject(url, request, RagAnswerResponse.class);
+            if (response == null || response.getAnswer() == null || response.getAnswer().trim().isEmpty()) {
+                throw new AiServiceException("AI service returned an empty answer.");
+            }
+            return response;
         } catch (HttpStatusCodeException ex) {
             String detail = extractDetailFromErrorResponse(ex.getResponseBodyAsString());
             if (detail == null || detail.trim().isEmpty()) {
                 detail = "AI service request failed with status code " + ex.getStatusCode().value();
             }
-            log.error("AI service error during RAG answer: {}", detail);
-            throw new RuntimeException(detail, ex);
+            log.error("AI service error during RAG answer (HTTP {})", ex.getStatusCode().value());
+            throw new AiServiceException(detail, ex);
         } catch (RestClientException ex) {
-            log.error("AI service communication error: {}", ex.getMessage());
-            throw new RuntimeException("AI service is currently unreachable: " + ex.getMessage(), ex);
+            log.error("AI service communication error: {}", ex.getClass().getSimpleName());
+            throw new AiServiceException("AI service is currently unreachable.", ex);
         }
     }
 
@@ -169,4 +180,3 @@ public class AiService {
         return responseBody.length() > 300 ? responseBody.substring(0, 300) : responseBody;
     }
 }
-
