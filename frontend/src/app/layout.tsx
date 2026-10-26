@@ -9,6 +9,10 @@ export const metadata = {
   description: 'AI-powered memory companion for personal and family memories.',
 };
 
+export const viewport = {
+  themeColor: '#F7F3EE',
+};
+
 export default function RootLayout({
   children,
 }: {

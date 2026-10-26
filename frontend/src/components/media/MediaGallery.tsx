@@ -174,7 +174,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
   const isLimitReached = mediaList.length >= MAX_MEDIA_PER_MEMORY;
 
   return (
-    <div style={{ marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
+    <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem' }}>
       {/* Header with Attachment Counter */}
       <div
         style={{
@@ -185,15 +185,15 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
+          <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text)' }}>
             Attached Images
           </span>
           <span
             style={{
               fontSize: '0.75rem',
               fontWeight: 700,
-              backgroundColor: isLimitReached ? '#fee2e2' : '#e0f2fe',
-              color: isLimitReached ? '#b91c1c' : '#0369a1',
+              backgroundColor: isLimitReached ? 'var(--color-error-background)' : 'var(--color-accent-soft)',
+              color: isLimitReached ? 'var(--color-error)' : 'var(--primary-hover)',
               padding: '0.15rem 0.55rem',
               borderRadius: '9999px',
             }}
@@ -203,7 +203,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
         </div>
 
         {isLimitReached && (
-          <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-secondary-text)', fontWeight: 500 }}>
             Maximum image limit reached
           </span>
         )}
@@ -213,9 +213,9 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
       {error && (
         <div
           style={{
-            backgroundColor: '#fef2f2',
-            border: '1px solid #fecaca',
-            color: '#b91c1c',
+            backgroundColor: 'var(--color-error-background)',
+            border: '1px solid var(--color-error-border)',
+            color: 'var(--color-error)',
             padding: '0.65rem 0.9rem',
             borderRadius: '8px',
             fontSize: '0.85rem',
@@ -231,7 +231,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
             style={{
               background: 'none',
               border: 'none',
-              color: '#b91c1c',
+              color: 'var(--color-error)',
               cursor: 'pointer',
               fontWeight: 'bold',
             }}
@@ -244,9 +244,9 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
       {successMsg && (
         <div
           style={{
-            backgroundColor: '#f0fdf4',
-            border: '1px solid #bbf7d0',
-            color: '#15803d',
+            backgroundColor: 'var(--color-success-background)',
+            border: '1px solid var(--color-success-border)',
+            color: 'var(--color-success)',
             padding: '0.65rem 0.9rem',
             borderRadius: '8px',
             fontSize: '0.85rem',
@@ -262,7 +262,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
             style={{
               background: 'none',
               border: 'none',
-              color: '#15803d',
+              color: 'var(--color-success)',
               cursor: 'pointer',
               fontWeight: 'bold',
             }}
@@ -278,11 +278,11 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
           style={{
             padding: '2rem',
             textAlign: 'center',
-            color: '#64748b',
+            color: 'var(--color-secondary-text)',
             fontSize: '0.9rem',
-            backgroundColor: '#f8fafc',
+            backgroundColor: 'var(--color-background)',
             borderRadius: '10px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--color-border)',
           }}
         >
           Loading attachments...
@@ -295,10 +295,10 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
               style={{
                 padding: '1.5rem',
                 textAlign: 'center',
-                color: '#64748b',
-                backgroundColor: '#f8fafc',
+                color: 'var(--color-secondary-text)',
+                backgroundColor: 'var(--color-background)',
                 borderRadius: '10px',
-                border: '1px dashed #cbd5e1',
+                border: '1px dashed var(--color-border)',
                 fontSize: '0.85rem',
                 marginBottom: '1rem',
               }}
@@ -319,13 +319,13 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                 <div
                   key={media.id}
                   style={{
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #e2e8f0',
+                    backgroundColor: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '10px',
                     overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                    boxShadow: '0 1px 3px rgba(var(--color-text-rgb), 0.05)',
                     position: 'relative',
                   }}
                 >
@@ -334,7 +334,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                     style={{
                       height: '110px',
                       width: '100%',
-                      backgroundColor: '#f1f5f9',
+                      backgroundColor: 'var(--color-background)',
                       position: 'relative',
                       overflow: 'hidden',
                     }}
@@ -354,7 +354,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                       style={{
                         fontSize: '0.75rem',
                         fontWeight: 600,
-                        color: '#0f172a',
+                        color: 'var(--color-text)',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
@@ -371,15 +371,15 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                         marginTop: '0.35rem',
                       }}
                     >
-                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--color-secondary-text)' }}>
                         {formatFileSize(media.fileSize)}
                       </span>
                       <button
                         onClick={() => setDeletingMedia(media)}
                         title="Delete image"
                         style={{
-                          backgroundColor: '#fee2e2',
-                          color: '#ef4444',
+                          backgroundColor: 'var(--color-error-background)',
+                          color: 'var(--color-error)',
                           border: 'none',
                           borderRadius: '4px',
                           padding: '0.2rem 0.45rem',
@@ -405,8 +405,8 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
               onDrop={handleDrop}
               onClick={() => !isUploading && fileInputRef.current?.click()}
               style={{
-                border: isDragging ? '2px dashed #0284c7' : '2px dashed #cbd5e1',
-                backgroundColor: isDragging ? '#f0f9ff' : '#f8fafc',
+                border: isDragging ? '2px dashed var(--color-primary)' : '2px dashed var(--color-border)',
+                backgroundColor: isDragging ? 'var(--color-accent-soft)' : 'var(--color-background)',
                 borderRadius: '12px',
                 padding: '1.25rem',
                 textAlign: 'center',
@@ -426,10 +426,10 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
 
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.35rem' }}>
                 <span style={{ fontSize: '1.4rem' }}>📷</span>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0f172a' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text)' }}>
                   {isUploading ? 'Uploading image(s)...' : 'Click or drag images to upload'}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-secondary-text)' }}>
                   JPEG, PNG, or WEBP up to 10 MB each ({MAX_MEDIA_PER_MEMORY - mediaList.length} slot
                   {MAX_MEDIA_PER_MEMORY - mediaList.length > 1 ? 's' : ''} remaining)
                 </span>
@@ -449,7 +449,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            backgroundColor: 'rgba(var(--color-text-rgb), 0.85)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -465,10 +465,10 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
               maxHeight: '85vh',
               display: 'flex',
               flexDirection: 'column',
-              backgroundColor: '#ffffff',
+              backgroundColor: 'var(--color-surface)',
               borderRadius: '14px',
               overflow: 'hidden',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              boxShadow: '0 25px 50px -12px rgba(var(--color-text-rgb), 0.25)',
             }}
           >
             {/* Lightbox Header */}
@@ -478,14 +478,14 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 padding: '0.75rem 1.25rem',
-                borderBottom: '1px solid #e2e8f0',
+                borderBottom: '1px solid var(--color-border)',
               }}
             >
               <div>
-                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-text)' }}>
                   {activePreviewMedia.fileName}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-secondary-text)', marginLeft: '0.5rem' }}>
                   ({formatFileSize(activePreviewMedia.fileSize)})
                 </span>
               </div>
@@ -496,7 +496,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                   border: 'none',
                   fontSize: '1.2rem',
                   cursor: 'pointer',
-                  color: '#64748b',
+                  color: 'var(--color-secondary-text)',
                   lineHeight: 1,
                 }}
               >
@@ -508,7 +508,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
             <div
               style={{
                 padding: '0.75rem',
-                backgroundColor: '#0f172a',
+                backgroundColor: 'var(--color-text)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -542,7 +542,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
+            backgroundColor: 'rgba(var(--color-text-rgb), 0.6)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -553,18 +553,18 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: '#ffffff',
+              backgroundColor: 'var(--color-surface)',
               borderRadius: '14px',
               maxWidth: '420px',
               width: '100%',
               padding: '1.5rem',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+              boxShadow: '0 20px 25px -5px rgba(var(--color-text-rgb), 0.1)',
             }}
           >
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.5rem 0' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-text)', margin: '0 0 0.5rem 0' }}>
               Delete Image Attachment?
             </h3>
-            <p style={{ fontSize: '0.85rem', color: '#475569', lineHeight: 1.5, margin: '0 0 1.25rem 0' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-secondary-text)', lineHeight: 1.5, margin: '0 0 1.25rem 0' }}>
               Are you sure you want to delete <strong>{deletingMedia.fileName}</strong>? This action cannot
               be undone and will permanently remove the image from storage.
             </p>
@@ -575,9 +575,9 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                 disabled={isDeleting}
                 onClick={() => setDeletingMedia(null)}
                 style={{
-                  backgroundColor: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
+                  backgroundColor: 'var(--color-background)',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '8px',
                   padding: '0.5rem 1rem',
                   fontSize: '0.85rem',
@@ -592,8 +592,8 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                 disabled={isDeleting}
                 onClick={handleDeleteConfirm}
                 style={{
-                  backgroundColor: '#ef4444',
-                  color: '#ffffff',
+                  backgroundColor: 'var(--color-error)',
+                  color: 'var(--color-surface)',
                   border: 'none',
                   borderRadius: '8px',
                   padding: '0.5rem 1rem',

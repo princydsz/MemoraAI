@@ -27,7 +27,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
         justifyContent: 'center',
         minHeight: '60vh',
       }}>
-        <div style={{ color: '#0284c7', fontWeight: 600 }}>Loading session...</div>
+        <div style={{ color: 'var(--primary-hover)', fontWeight: 600 }}>Loading session...</div>
       </div>
     );
   }
@@ -41,7 +41,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
       <div style={{
         textAlign: 'center',
         padding: '3rem',
-        color: '#dc2626',
+        color: 'var(--color-error)',
       }}>
         <h2>Access Denied</h2>
         <p>You do not have permission to view this page.</p>
