@@ -13,6 +13,7 @@ import {
   updateMemoryApi,
 } from '../../lib/memory';
 import MediaGallery from '../../components/media/MediaGallery';
+import VoiceRecorderModal from '../../components/voice/VoiceRecorderModal';
 import {
   formatFileSize,
   MAX_MEDIA_PER_MEMORY,
@@ -35,6 +36,8 @@ export default function MemoryVaultPage() {
 
   // Modal / Form state
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
+  const [isVoiceDictateOpen, setIsVoiceDictateOpen] = useState<boolean>(false);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
   const [viewingMemory, setViewingMemory] = useState<Memory | null>(null);
   const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null);
@@ -525,25 +528,47 @@ export default function MemoryVaultPage() {
               </p>
             </div>
 
-            <button
-              onClick={openCreateModal}
-              style={{
-                backgroundColor: '#0284c7',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.65rem 1.25rem',
-                borderRadius: '8px',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
-            >
-              + Create Memory
-            </button>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setIsVoiceModalOpen(true)}
+                style={{
+                  backgroundColor: '#ffffff',
+                  color: '#0284c7',
+                  border: '1px solid #0284c7',
+                  padding: '0.65rem 1.15rem',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                }}
+              >
+                <span>🎙️</span>
+                <span>Record Voice</span>
+              </button>
+              <button
+                onClick={openCreateModal}
+                style={{
+                  backgroundColor: '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '0.65rem 1.25rem',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                + Create Memory
+              </button>
+            </div>
           </div>
 
           {/* Phase 6 Semantic Search Bar */}
@@ -739,21 +764,42 @@ export default function MemoryVaultPage() {
               <p style={{ fontSize: '0.9rem', color: '#64748b', maxWidth: '420px', margin: '0 auto 1.5rem auto' }}>
                 Start preserving your life reflections, stories, and family memories by creating your first entry.
               </p>
-              <button
-                onClick={openCreateModal}
-                style={{
-                  backgroundColor: '#0284c7',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '0.65rem 1.25rem',
-                  borderRadius: '8px',
-                  fontWeight: 600,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                }}
-              >
-                + Create Your First Memory
-              </button>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setIsVoiceModalOpen(true)}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    color: '#0284c7',
+                    border: '1px solid #0284c7',
+                    padding: '0.65rem 1.25rem',
+                    borderRadius: '8px',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                  }}
+                >
+                  <span>🎙️</span>
+                  <span>Record Voice Memory</span>
+                </button>
+                <button
+                  onClick={openCreateModal}
+                  style={{
+                    backgroundColor: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '0.65rem 1.25rem',
+                    borderRadius: '8px',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  + Create Your First Memory
+                </button>
+              </div>
             </div>
           ) : (
             <div style={{
@@ -1052,9 +1098,32 @@ export default function MemoryVaultPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
-                  Content *
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
+                    Content *
+                  </label>
+                  <button
+                    type="button"
+                    disabled={isSubmitting || !!pendingCreatedMemory}
+                    onClick={() => setIsVoiceDictateOpen(true)}
+                    style={{
+                      backgroundColor: '#f0f9ff',
+                      color: '#0284c7',
+                      border: '1px solid #bae6fd',
+                      borderRadius: '6px',
+                      padding: '0.2rem 0.6rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: isSubmitting || !!pendingCreatedMemory ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                    }}
+                  >
+                    <span>🎙️</span>
+                    <span>Record Voice Note</span>
+                  </button>
+                </div>
                 <textarea
                   required
                   rows={4}
@@ -1955,6 +2024,38 @@ export default function MemoryVaultPage() {
           </div>
         </div>
       )}
+
+      {/* STANDALONE VOICE RECORDER MODAL */}
+      <VoiceRecorderModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => setIsVoiceModalOpen(false)}
+        onMemoryCreated={(newMemory) => {
+          setMemories((prev) => [newMemory, ...prev]);
+          setSuccessMsg('Voice memory created successfully!');
+          setTimeout(() => setSuccessMsg(null), 3000);
+        }}
+      />
+
+      {/* VOICE DICTATE HELPER FOR CREATE MEMORY MODAL */}
+      <VoiceRecorderModal
+        isOpen={isVoiceDictateOpen}
+        onClose={() => setIsVoiceDictateOpen(false)}
+        initialCategory={category || 'Reflections'}
+        initialTags={tags || 'voice'}
+        onTranscriptReady={(transcript) => {
+          setContent((prev) => (prev ? `${prev}\n\n${transcript}` : transcript));
+          if (!title.trim()) {
+            const now = new Date();
+            setTitle(
+              `Voice Reflection - ${now.toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}`
+            );
+          }
+        }}
+      />
     </ProtectedRoute>
   );
 }
