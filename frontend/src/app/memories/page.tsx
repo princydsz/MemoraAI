@@ -494,9 +494,9 @@ export default function MemoryVaultPage() {
 
   return (
     <ProtectedRoute>
-      <div style={{
+      <div className="memory-vault" style={{
         minHeight: 'calc(100vh - 70px)',
-        backgroundColor: '#f8fafc',
+        backgroundColor: 'var(--color-background)',
         padding: '2rem 1.5rem',
       }}>
         <div style={{
@@ -508,11 +508,11 @@ export default function MemoryVaultPage() {
         }}>
           {/* Header Bar */}
           <div style={{
-            backgroundColor: '#ffffff',
+            backgroundColor: 'var(--color-surface)',
             padding: '1.5rem 2rem',
             borderRadius: '16px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+            border: '1px solid var(--color-border)',
+            boxShadow: '0 2px 4px rgba(var(--color-text-rgb), 0.03)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -520,10 +520,10 @@ export default function MemoryVaultPage() {
             gap: '1rem',
           }}>
             <div>
-              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.25rem 0' }}>
+              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--color-text)', margin: '0 0 0.25rem 0' }}>
                 Memory Vault
               </h1>
-              <p style={{ fontSize: '0.9rem', color: '#64748b', margin: 0 }}>
+              <p style={{ fontSize: '0.9rem', color: 'var(--color-secondary-text)', margin: 0 }}>
                 Store, reflect, and organize your personal life memories
               </p>
             </div>
@@ -532,9 +532,9 @@ export default function MemoryVaultPage() {
               <button
                 onClick={() => setIsVoiceModalOpen(true)}
                 style={{
-                  backgroundColor: '#ffffff',
-                  color: '#0284c7',
-                  border: '1px solid #0284c7',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)',
                   padding: '0.65rem 1.15rem',
                   borderRadius: '8px',
                   fontWeight: 600,
@@ -543,7 +543,7 @@ export default function MemoryVaultPage() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.45rem',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                  boxShadow: '0 1px 2px rgba(var(--color-text-rgb), 0.05)',
                 }}
               >
                 <span>🎙️</span>
@@ -552,15 +552,15 @@ export default function MemoryVaultPage() {
               <button
                 onClick={openCreateModal}
                 style={{
-                  backgroundColor: '#0284c7',
-                  color: '#ffffff',
+                  backgroundColor: 'var(--color-primary)',
+                  color: 'var(--color-surface)',
                   border: 'none',
                   padding: '0.65rem 1.25rem',
                   borderRadius: '8px',
                   fontWeight: 600,
                   fontSize: '0.9rem',
                   cursor: 'pointer',
-                  boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                  boxShadow: '0 2px 4px rgba(var(--color-primary-rgb), 0.25)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem',
@@ -573,27 +573,29 @@ export default function MemoryVaultPage() {
 
           {/* Phase 6 Semantic Search Bar */}
           <div style={{
-            backgroundColor: '#ffffff',
+            backgroundColor: 'var(--color-surface)',
             padding: '1.25rem 1.5rem',
             borderRadius: '14px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+            border: '1px solid var(--color-border)',
+            boxShadow: '0 2px 4px rgba(var(--color-text-rgb), 0.02)',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.75rem',
           }}>
-            <form onSubmit={handleSemanticSearch} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <form className="memory-search-form" onSubmit={handleSemanticSearch} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
                 <input
                   type="text"
+                  aria-label="Search your memories"
                   placeholder="Search your memories by meaning... (e.g. 'trips I took with my friends')"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  className="memory-search-input"
                   style={{
                     width: '100%',
                     padding: '0.65rem 1rem',
                     borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--color-border)',
                     fontSize: '0.9rem',
                     outline: 'none',
                     boxSizing: 'border-box',
@@ -604,8 +606,8 @@ export default function MemoryVaultPage() {
                 type="submit"
                 disabled={isSearching}
                 style={{
-                  backgroundColor: '#4f46e5',
-                  color: '#ffffff',
+                  backgroundColor: 'var(--color-primary)',
+                  color: 'var(--color-surface)',
                   border: 'none',
                   padding: '0.65rem 1.25rem',
                   borderRadius: '8px',
@@ -624,9 +626,9 @@ export default function MemoryVaultPage() {
                   type="button"
                   onClick={handleClearSearch}
                   style={{
-                    backgroundColor: '#f1f5f9',
-                    color: '#475569',
-                    border: '1px solid #cbd5e1',
+                    backgroundColor: 'var(--color-background)',
+                    color: 'var(--color-secondary-text)',
+                    border: '1px solid var(--color-border)',
                     padding: '0.65rem 1rem',
                     borderRadius: '8px',
                     fontWeight: 600,
@@ -643,9 +645,9 @@ export default function MemoryVaultPage() {
                 disabled={isReindexing}
                 title="Index all existing memories into Qdrant vector store"
                 style={{
-                  backgroundColor: '#f8fafc',
-                  color: '#6366f1',
-                  border: '1px solid #e0e7ff',
+                  backgroundColor: 'var(--color-background)',
+                  color: 'var(--accent-strong)',
+                  border: '1px solid var(--accent-strong)',
                   padding: '0.65rem 1rem',
                   borderRadius: '8px',
                   fontWeight: 600,
@@ -659,8 +661,8 @@ export default function MemoryVaultPage() {
             {isSemanticSearchActive && searchResults.length > 0 && (
               <div style={{
                 fontSize: '0.85rem',
-                color: '#4338ca',
-                backgroundColor: '#eef2ff',
+                color: 'var(--primary-hover)',
+                backgroundColor: 'var(--color-accent-soft)',
                 padding: '0.4rem 0.75rem',
                 borderRadius: '6px',
                 display: 'inline-flex',
@@ -675,9 +677,9 @@ export default function MemoryVaultPage() {
           {/* Feedback Messages */}
           {successMsg && (
             <div style={{
-              backgroundColor: '#f0fdf4',
-              color: '#166534',
-              border: '1px solid #bbf7d0',
+              backgroundColor: 'var(--color-success-background)',
+              color: 'var(--color-success)',
+              border: '1px solid var(--color-success-border)',
               padding: '0.75rem 1rem',
               borderRadius: '8px',
               fontSize: '0.875rem',
@@ -689,9 +691,9 @@ export default function MemoryVaultPage() {
 
           {error && (
             <div style={{
-              backgroundColor: '#fef2f2',
-              color: '#b91c1c',
-              border: '1px solid #fecaca',
+              backgroundColor: 'var(--color-error-background)',
+              color: 'var(--color-error)',
+              border: '1px solid var(--color-error-border)',
               padding: '0.75rem 1rem',
               borderRadius: '8px',
               fontSize: '0.875rem',
@@ -702,28 +704,28 @@ export default function MemoryVaultPage() {
 
           {/* Memory List Grid */}
           {isLoading ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b', fontWeight: 500 }}>
+            <div className="memory-loading-state" aria-live="polite" style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-secondary-text)', fontWeight: 500 }}>
               Loading memories from your vault...
             </div>
           ) : isSemanticSearchActive && searchResults.length === 0 ? (
             <div style={{
-              backgroundColor: '#ffffff',
+              backgroundColor: 'var(--color-surface)',
               padding: '3rem 2rem',
               borderRadius: '16px',
-              border: '1px dashed #cbd5e1',
+              border: '1px dashed var(--color-border)',
               textAlign: 'center',
             }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b', margin: '0 0 0.5rem 0' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text)', margin: '0 0 0.5rem 0' }}>
                 No relevant memories found for &quot;{searchQuery}&quot;.
               </h3>
-              <p style={{ fontSize: '0.9rem', color: '#64748b', maxWidth: '450px', margin: '0 auto 1.5rem auto' }}>
+              <p style={{ fontSize: '0.9rem', color: 'var(--color-secondary-text)', maxWidth: '450px', margin: '0 auto 1.5rem auto' }}>
                 No memories matched the semantic meaning of &quot;{searchQuery}&quot;. Try clicking &quot;⚡ Re-index Vault&quot; or searching with different descriptive terms.
               </p>
               <button
                 onClick={handleClearSearch}
                 style={{
-                  backgroundColor: '#0284c7',
-                  color: '#ffffff',
+                  backgroundColor: 'var(--color-primary)',
+                  color: 'var(--color-surface)',
                   border: 'none',
                   padding: '0.65rem 1.25rem',
                   borderRadius: '8px',
@@ -737,18 +739,18 @@ export default function MemoryVaultPage() {
             </div>
           ) : memories.length === 0 ? (
             <div style={{
-              backgroundColor: '#ffffff',
+              backgroundColor: 'var(--color-surface)',
               padding: '3rem 2rem',
               borderRadius: '16px',
-              border: '1px dashed #cbd5e1',
+              border: '1px dashed var(--color-border)',
               textAlign: 'center',
             }}>
               <div style={{
                 width: '48px',
                 height: '48px',
                 borderRadius: '12px',
-                backgroundColor: '#e0f2fe',
-                color: '#0284c7',
+                backgroundColor: 'var(--color-accent-soft)',
+                color: 'var(--primary-hover)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -758,19 +760,19 @@ export default function MemoryVaultPage() {
               }}>
                 M
               </div>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b', margin: '0 0 0.5rem 0' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text)', margin: '0 0 0.5rem 0' }}>
                 Your Memory Vault is empty
               </h3>
-              <p style={{ fontSize: '0.9rem', color: '#64748b', maxWidth: '420px', margin: '0 auto 1.5rem auto' }}>
+              <p style={{ fontSize: '0.9rem', color: 'var(--color-secondary-text)', maxWidth: '420px', margin: '0 auto 1.5rem auto' }}>
                 Start preserving your life reflections, stories, and family memories by creating your first entry.
               </p>
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => setIsVoiceModalOpen(true)}
                   style={{
-                    backgroundColor: '#ffffff',
-                    color: '#0284c7',
-                    border: '1px solid #0284c7',
+                    backgroundColor: 'var(--color-surface)',
+                    color: 'var(--color-text)',
+                    border: '1px solid var(--color-border)',
                     padding: '0.65rem 1.25rem',
                     borderRadius: '8px',
                     fontWeight: 600,
@@ -779,6 +781,7 @@ export default function MemoryVaultPage() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.45rem',
+                    boxShadow: '0 1px 2px rgba(var(--color-text-rgb), 0.05)',
                   }}
                 >
                   <span>🎙️</span>
@@ -787,14 +790,15 @@ export default function MemoryVaultPage() {
                 <button
                   onClick={openCreateModal}
                   style={{
-                    backgroundColor: '#0284c7',
-                    color: '#ffffff',
+                    backgroundColor: 'var(--color-primary)',
+                    color: 'var(--color-surface)',
                     border: 'none',
                     padding: '0.65rem 1.25rem',
                     borderRadius: '8px',
                     fontWeight: 600,
                     fontSize: '0.9rem',
                     cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(var(--color-primary-rgb), 0.25)',
                   }}
                 >
                   + Create Your First Memory
@@ -802,21 +806,21 @@ export default function MemoryVaultPage() {
               </div>
             </div>
           ) : (
-            <div style={{
+            <div className="memory-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
               gap: '1.25rem',
             }}>
               {(isSemanticSearchActive ? searchResults : memories).map((mem) => (
-                <div key={mem.id} style={{
-                  backgroundColor: '#ffffff',
+                <div key={mem.id} className="memory-vault-card" style={{
+                  backgroundColor: 'var(--color-surface)',
                   borderRadius: '14px',
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid var(--color-border)',
                   padding: '1.5rem',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                  boxShadow: 'var(--shadow-card)',
                   transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                 }}>
                   <div>
@@ -824,7 +828,7 @@ export default function MemoryVaultPage() {
                       <h3 style={{
                         fontSize: '1.1rem',
                         fontWeight: 700,
-                        color: '#0f172a',
+                        color: 'var(--color-text)',
                         margin: 0,
                         lineHeight: 1.3,
                         cursor: 'pointer',
@@ -837,8 +841,8 @@ export default function MemoryVaultPage() {
                         <span style={{
                           fontSize: '0.725rem',
                           fontWeight: 700,
-                          backgroundColor: '#e0f2fe',
-                          color: '#0369a1',
+                          backgroundColor: 'var(--color-accent-soft)',
+                          color: 'var(--primary-hover)',
                           padding: '0.15rem 0.55rem',
                           borderRadius: '9999px',
                           whiteSpace: 'nowrap',
@@ -850,7 +854,7 @@ export default function MemoryVaultPage() {
 
                     <p style={{
                       fontSize: '0.875rem',
-                      color: '#475569',
+                      color: 'var(--color-secondary-text)',
                       lineHeight: 1.5,
                       margin: '0 0 1rem 0',
                       display: '-webkit-box',
@@ -868,8 +872,8 @@ export default function MemoryVaultPage() {
                         {mem.tags.split(',').map((t, idx) => (
                           <span key={idx} style={{
                             fontSize: '0.7rem',
-                            backgroundColor: '#f1f5f9',
-                            color: '#475569',
+                            backgroundColor: 'var(--color-background)',
+                            color: 'var(--color-secondary-text)',
                             padding: '0.1rem 0.45rem',
                             borderRadius: '4px',
                           }}>
@@ -879,14 +883,14 @@ export default function MemoryVaultPage() {
                       </div>
                     )}
 
-                    <div style={{
+                    <div className="memory-card-footer" style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       paddingTop: '0.75rem',
-                      borderTop: '1px solid #f1f5f9',
+                      borderTop: '1px solid var(--color-background)',
                       fontSize: '0.8rem',
-                      color: '#94a3b8',
+                      color: 'var(--color-disabled)',
                     }}>
                       <span>{formatDate(mem.createdAt)}</span>
                       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -894,9 +898,9 @@ export default function MemoryVaultPage() {
                           onClick={() => handleAiProcess(mem)}
                           disabled={aiProcessingId === mem.id}
                           style={{
-                            backgroundColor: '#f0f9ff',
-                            border: '1px solid #bae6fd',
-                            color: '#0284c7',
+                            backgroundColor: 'var(--color-accent-soft)',
+                            border: '1px solid var(--color-accent-border)',
+                            color: 'var(--primary-hover)',
                             fontWeight: 600,
                             cursor: aiProcessingId === mem.id ? 'not-allowed' : 'pointer',
                             fontSize: '0.75rem',
@@ -914,7 +918,7 @@ export default function MemoryVaultPage() {
                           style={{
                             backgroundColor: 'transparent',
                             border: 'none',
-                            color: '#0284c7',
+                            color: 'var(--primary-hover)',
                             fontWeight: 600,
                             cursor: 'pointer',
                             fontSize: '0.8rem',
@@ -928,7 +932,7 @@ export default function MemoryVaultPage() {
                           style={{
                             backgroundColor: 'transparent',
                             border: 'none',
-                            color: '#475569',
+                            color: 'var(--color-secondary-text)',
                             fontWeight: 600,
                             cursor: 'pointer',
                             fontSize: '0.8rem',
@@ -942,7 +946,7 @@ export default function MemoryVaultPage() {
                           style={{
                             backgroundColor: 'transparent',
                             border: 'none',
-                            color: '#ef4444',
+                            color: 'var(--color-error)',
                             fontWeight: 600,
                             cursor: 'pointer',
                             fontSize: '0.8rem',
@@ -969,7 +973,7 @@ export default function MemoryVaultPage() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.5)',
+          backgroundColor: 'rgba(var(--color-text-rgb), 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -977,19 +981,19 @@ export default function MemoryVaultPage() {
           zIndex: 100,
         }}>
           <div style={{
-            backgroundColor: '#ffffff',
+            backgroundColor: 'var(--color-surface)',
             borderRadius: '16px',
             width: '100%',
             maxWidth: '580px',
             maxHeight: '90vh',
             overflowY: 'auto',
             padding: '2rem',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 20px 25px -5px rgba(var(--color-text-rgb), 0.1)',
           }}>
             {pendingCreatedMemory ? (
               <div style={{
-                backgroundColor: '#fffbeb',
-                border: '1px solid #fde68a',
+                backgroundColor: 'var(--color-accent-soft)',
+                border: '1px solid var(--color-accent-border)',
                 borderRadius: '10px',
                 padding: '0.75rem 1rem',
                 marginBottom: '1.25rem',
@@ -997,7 +1001,7 @@ export default function MemoryVaultPage() {
                 alignItems: 'center',
                 gap: '0.6rem',
                 fontSize: '0.85rem',
-                color: '#92400e',
+                color: 'var(--color-text)',
               }}>
                 <span style={{ fontSize: '1.1rem' }}>ℹ️</span>
                 <span>
@@ -1006,8 +1010,8 @@ export default function MemoryVaultPage() {
               </div>
             ) : (
               <div style={{
-                backgroundColor: '#f0f9ff',
-                border: '1px solid #bae6fd',
+                backgroundColor: 'var(--color-accent-soft)',
+                border: '1px solid var(--color-accent-border)',
                 borderRadius: '10px',
                 padding: '0.75rem 1rem',
                 marginBottom: '1.25rem',
@@ -1015,20 +1019,20 @@ export default function MemoryVaultPage() {
                 alignItems: 'center',
                 gap: '0.6rem',
                 fontSize: '0.85rem',
-                color: '#0369a1',
+                color: 'var(--primary-hover)',
               }}>
                 <span style={{ fontSize: '1.1rem' }}>✨</span>
                 <span><strong>MemoraAI Auto-Organize:</strong> Type your title & content, then click <em>"✨ Auto-Organize & Save"</em> to automatically receive AI category & tag suggestions.</span>
               </div>
             )}
 
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', marginTop: 0, marginBottom: '1.25rem' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text)', marginTop: 0, marginBottom: '1.25rem' }}>
               {pendingCreatedMemory ? 'Upload Image Attachments' : 'Create a New Memory'}
             </h2>
 
             <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.35rem' }}>
                   Title *
                 </label>
                 <input
@@ -1042,17 +1046,17 @@ export default function MemoryVaultPage() {
                     width: '100%',
                     boxSizing: 'border-box',
                     padding: '0.6rem 0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                     outline: 'none',
-                    backgroundColor: pendingCreatedMemory ? '#f8fafc' : '#ffffff',
+                    backgroundColor: pendingCreatedMemory ? 'var(--color-background)' : 'var(--color-surface)',
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.35rem' }}>
                   Category (optional)
                 </label>
                 <input
@@ -1065,17 +1069,17 @@ export default function MemoryVaultPage() {
                     width: '100%',
                     boxSizing: 'border-box',
                     padding: '0.6rem 0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                     outline: 'none',
-                    backgroundColor: pendingCreatedMemory ? '#f8fafc' : '#ffffff',
+                    backgroundColor: pendingCreatedMemory ? 'var(--color-background)' : 'var(--color-surface)',
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.35rem' }}>
                   Tags (optional, comma-separated)
                 </label>
                 <input
@@ -1088,18 +1092,18 @@ export default function MemoryVaultPage() {
                     width: '100%',
                     boxSizing: 'border-box',
                     padding: '0.6rem 0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                     outline: 'none',
-                    backgroundColor: pendingCreatedMemory ? '#f8fafc' : '#ffffff',
+                    backgroundColor: pendingCreatedMemory ? 'var(--color-background)' : 'var(--color-surface)',
                   }}
                 />
               </div>
 
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                  <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)' }}>
                     Content *
                   </label>
                   <button
@@ -1107,9 +1111,9 @@ export default function MemoryVaultPage() {
                     disabled={isSubmitting || !!pendingCreatedMemory}
                     onClick={() => setIsVoiceDictateOpen(true)}
                     style={{
-                      backgroundColor: '#f0f9ff',
-                      color: '#0284c7',
-                      border: '1px solid #bae6fd',
+                      backgroundColor: 'var(--color-accent-soft)',
+                      color: 'var(--primary-hover)',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '6px',
                       padding: '0.2rem 0.6rem',
                       fontSize: '0.75rem',
@@ -1135,28 +1139,28 @@ export default function MemoryVaultPage() {
                     width: '100%',
                     boxSizing: 'border-box',
                     padding: '0.65rem 0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                     outline: 'none',
                     resize: 'vertical',
                     fontFamily: 'inherit',
-                    backgroundColor: pendingCreatedMemory ? '#f8fafc' : '#ffffff',
+                    backgroundColor: pendingCreatedMemory ? 'var(--color-background)' : 'var(--color-surface)',
                   }}
                 />
               </div>
 
               {/* IMAGE ATTACHMENT SECTION */}
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                  <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)' }}>
                     Attach Images (Optional)
                   </label>
                   <span style={{
                     fontSize: '0.75rem',
                     fontWeight: 700,
-                    backgroundColor: createFiles.length >= MAX_MEDIA_PER_MEMORY ? '#fee2e2' : '#e0f2fe',
-                    color: createFiles.length >= MAX_MEDIA_PER_MEMORY ? '#b91c1c' : '#0369a1',
+                    backgroundColor: createFiles.length >= MAX_MEDIA_PER_MEMORY ? 'var(--color-error-background)' : 'var(--color-accent-soft)',
+                    color: createFiles.length >= MAX_MEDIA_PER_MEMORY ? 'var(--color-error)' : 'var(--primary-hover)',
                     padding: '0.15rem 0.55rem',
                     borderRadius: '9999px',
                   }}>
@@ -1182,8 +1186,8 @@ export default function MemoryVaultPage() {
                     }}
                     onClick={() => !isSubmitting && createFileInputRef.current?.click()}
                     style={{
-                      border: isCreateDragging ? '2px dashed #0284c7' : '2px dashed #cbd5e1',
-                      backgroundColor: isCreateDragging ? '#f0f9ff' : '#f8fafc',
+                      border: isCreateDragging ? '2px dashed var(--color-primary)' : '2px dashed var(--color-border)',
+                      backgroundColor: isCreateDragging ? 'var(--color-accent-soft)' : 'var(--color-background)',
                       borderRadius: '8px',
                       padding: '0.85rem',
                       textAlign: 'center',
@@ -1203,10 +1207,10 @@ export default function MemoryVaultPage() {
                     />
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
                       <span style={{ fontSize: '1.25rem' }}>📷</span>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0f172a' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text)' }}>
                         Click or drag images to attach
                       </span>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-secondary-text)' }}>
                         JPEG, PNG, or WEBP up to 10 MB each ({MAX_MEDIA_PER_MEMORY - createFiles.length} slot{MAX_MEDIA_PER_MEMORY - createFiles.length > 1 ? 's' : ''} remaining)
                       </span>
                     </div>
@@ -1226,10 +1230,10 @@ export default function MemoryVaultPage() {
                         key={preview.id}
                         style={{
                           position: 'relative',
-                          backgroundColor: '#f1f5f9',
+                          backgroundColor: 'var(--color-background)',
                           borderRadius: '8px',
                           overflow: 'hidden',
-                          border: '1px solid #e2e8f0',
+                          border: '1px solid var(--color-border)',
                           display: 'flex',
                           flexDirection: 'column',
                         }}
@@ -1253,8 +1257,8 @@ export default function MemoryVaultPage() {
                               position: 'absolute',
                               top: '3px',
                               right: '3px',
-                              backgroundColor: 'rgba(15, 23, 42, 0.75)',
-                              color: '#ffffff',
+                              backgroundColor: 'rgba(var(--color-text-rgb), 0.75)',
+                              color: 'var(--color-surface)',
                               border: 'none',
                               borderRadius: '50%',
                               width: '20px',
@@ -1270,11 +1274,11 @@ export default function MemoryVaultPage() {
                             ✕
                           </button>
                         </div>
-                        <div style={{ padding: '0.3rem', fontSize: '0.7rem', color: '#334155' }}>
+                        <div style={{ padding: '0.3rem', fontSize: '0.7rem', color: 'var(--color-text)' }}>
                           <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
                             {preview.file.name}
                           </div>
-                          <div style={{ color: '#64748b' }}>
+                          <div style={{ color: 'var(--color-secondary-text)' }}>
                             {formatFileSize(preview.file.size)}
                           </div>
                         </div>
@@ -1292,9 +1296,9 @@ export default function MemoryVaultPage() {
                     disabled={isSubmitting}
                     onClick={closeCreateModal}
                     style={{
-                      backgroundColor: '#ffffff',
-                      color: '#475569',
-                      border: '1px solid #cbd5e1',
+                      backgroundColor: 'var(--color-surface)',
+                      color: 'var(--color-secondary-text)',
+                      border: '1px solid var(--color-border)',
                       padding: '0.6rem 1.1rem',
                       borderRadius: '8px',
                       fontWeight: 600,
@@ -1308,8 +1312,8 @@ export default function MemoryVaultPage() {
                     type="submit"
                     disabled={isSubmitting || createFiles.length === 0}
                     style={{
-                      backgroundColor: isSubmitting || createFiles.length === 0 ? '#94a3b8' : '#0284c7',
-                      color: '#ffffff',
+                      backgroundColor: isSubmitting || createFiles.length === 0 ? 'var(--color-disabled)' : 'var(--color-primary)',
+                      color: 'var(--color-surface)',
                       border: 'none',
                       padding: '0.6rem 1.25rem',
                       borderRadius: '8px',
@@ -1328,9 +1332,9 @@ export default function MemoryVaultPage() {
                     disabled={isSubmitting}
                     onClick={closeCreateModal}
                     style={{
-                      backgroundColor: '#ffffff',
-                      color: '#475569',
-                      border: '1px solid #cbd5e1',
+                      backgroundColor: 'var(--color-surface)',
+                      color: 'var(--color-secondary-text)',
+                      border: '1px solid var(--color-border)',
                       padding: '0.6rem 1.1rem',
                       borderRadius: '8px',
                       fontWeight: 600,
@@ -1344,9 +1348,9 @@ export default function MemoryVaultPage() {
                     type="submit"
                     disabled={isSubmitting}
                     style={{
-                      backgroundColor: '#ffffff',
-                      color: '#0284c7',
-                      border: '1px solid #0284c7',
+                      backgroundColor: 'var(--color-surface)',
+                      color: 'var(--primary-hover)',
+                      border: '1px solid var(--color-primary)',
                       padding: '0.6rem 1.1rem',
                       borderRadius: '8px',
                       fontWeight: 600,
@@ -1361,15 +1365,15 @@ export default function MemoryVaultPage() {
                     onClick={handleCreateAndAutoOrganize}
                     disabled={isSubmitting}
                     style={{
-                      backgroundColor: isSubmitting ? '#94a3b8' : '#0284c7',
-                      color: '#ffffff',
+                      backgroundColor: isSubmitting ? 'var(--color-disabled)' : 'var(--color-primary)',
+                      color: 'var(--color-surface)',
                       border: 'none',
                       padding: '0.6rem 1.25rem',
                       borderRadius: '8px',
                       fontWeight: 600,
                       fontSize: '0.875rem',
                       cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                      boxShadow: '0 2px 4px rgba(var(--color-primary-rgb), 0.25)',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.35rem',
@@ -1397,7 +1401,7 @@ export default function MemoryVaultPage() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.5)',
+          backgroundColor: 'rgba(var(--color-text-rgb), 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1405,48 +1409,48 @@ export default function MemoryVaultPage() {
           zIndex: 1000,
         }}>
           <div style={{
-            backgroundColor: '#ffffff',
+            backgroundColor: 'var(--color-surface)',
             borderRadius: '16px',
             maxWidth: '560px',
             width: '100%',
             padding: '2rem',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
-            border: '1px solid #e2e8f0',
+            boxShadow: '0 20px 25px -5px rgba(var(--color-text-rgb), 0.1)',
+            border: '1px solid var(--color-border)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <span style={{ fontSize: '1.25rem' }}>✨</span>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
                 Review AI Suggestions
               </h3>
             </div>
-            <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1.25rem', lineHeight: 1.45 }}>
+            <p style={{ fontSize: '0.875rem', color: 'var(--color-secondary-text)', marginBottom: '1.25rem', lineHeight: 1.45 }}>
               MemoraAI analyzed <strong>"{createdReviewMemory.title}"</strong> and suggested the following organization. You can accept them or customize them before finalizing.
             </p>
 
             <form onSubmit={handleSaveReviewSuggestions} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ backgroundColor: '#f8fafc', padding: '0.85rem 1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+              <div style={{ backgroundColor: 'var(--color-background)', padding: '0.85rem 1rem', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary-text)', textTransform: 'uppercase' }}>
                   AI Generated Summary
                 </span>
-                <p style={{ fontSize: '0.875rem', color: '#1e293b', margin: '0.25rem 0 0 0' }}>
+                <p style={{ fontSize: '0.875rem', color: 'var(--color-text)', margin: '0.25rem 0 0 0' }}>
                   {aiReviewResult.summary}
                 </p>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.35rem' }}>
                   Category
                 </label>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.35rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>AI Suggestion:</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-secondary-text)' }}>AI Suggestion:</span>
                   <span
                     onClick={() => setReviewCategory(aiReviewResult.suggestedCategory)}
                     title="Click to apply AI category"
                     style={{
                       fontSize: '0.8rem',
                       fontWeight: 700,
-                      backgroundColor: '#e0f2fe',
-                      color: '#0369a1',
+                      backgroundColor: 'var(--color-accent-soft)',
+                      color: 'var(--primary-hover)',
                       padding: '0.2rem 0.65rem',
                       borderRadius: '9999px',
                       cursor: 'pointer',
@@ -1464,7 +1468,7 @@ export default function MemoryVaultPage() {
                     width: '100%',
                     boxSizing: 'border-box',
                     padding: '0.6rem 0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                   }}
@@ -1472,16 +1476,16 @@ export default function MemoryVaultPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.35rem' }}>
                   Tags (comma-separated)
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.35rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#64748b', width: '100%' }}>AI Suggested Tags:</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-secondary-text)', width: '100%' }}>AI Suggested Tags:</span>
                   {aiReviewResult.suggestedTags.map((t, idx) => (
                     <span key={idx} style={{
                       fontSize: '0.75rem',
-                      backgroundColor: '#f1f5f9',
-                      color: '#0284c7',
+                      backgroundColor: 'var(--color-background)',
+                      color: 'var(--primary-hover)',
                       padding: '0.15rem 0.5rem',
                       borderRadius: '4px',
                       fontWeight: 600,
@@ -1499,7 +1503,7 @@ export default function MemoryVaultPage() {
                     width: '100%',
                     boxSizing: 'border-box',
                     padding: '0.6rem 0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                   }}
@@ -1516,9 +1520,9 @@ export default function MemoryVaultPage() {
                     setTimeout(() => setSuccessMsg(null), 3000);
                   }}
                   style={{
-                    backgroundColor: '#ffffff',
-                    color: '#475569',
-                    border: '1px solid #cbd5e1',
+                    backgroundColor: 'var(--color-surface)',
+                    color: 'var(--color-secondary-text)',
+                    border: '1px solid var(--color-border)',
                     padding: '0.6rem 1.1rem',
                     borderRadius: '8px',
                     fontWeight: 600,
@@ -1532,15 +1536,15 @@ export default function MemoryVaultPage() {
                   type="submit"
                   disabled={isSubmitting}
                   style={{
-                    backgroundColor: '#0284c7',
-                    color: '#ffffff',
+                    backgroundColor: 'var(--color-primary)',
+                    color: 'var(--color-surface)',
                     border: 'none',
                     padding: '0.6rem 1.3rem',
                     borderRadius: '8px',
                     fontWeight: 600,
                     fontSize: '0.875rem',
                     cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                    boxShadow: '0 2px 4px rgba(var(--color-primary-rgb), 0.25)',
                   }}
                 >
                   {isSubmitting ? 'Saving...' : '✓ Confirm & Finish'}
@@ -1559,7 +1563,7 @@ export default function MemoryVaultPage() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.5)',
+          backgroundColor: 'rgba(var(--color-text-rgb), 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1567,20 +1571,20 @@ export default function MemoryVaultPage() {
           zIndex: 100,
         }}>
           <div style={{
-            backgroundColor: '#ffffff',
+            backgroundColor: 'var(--color-surface)',
             borderRadius: '16px',
             width: '100%',
             maxWidth: '560px',
             padding: '2rem',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 20px 25px -5px rgba(var(--color-text-rgb), 0.1)',
           }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', marginTop: 0, marginBottom: '1.25rem' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text)', marginTop: 0, marginBottom: '1.25rem' }}>
               Edit Memory
             </h2>
 
             <form onSubmit={handleEditSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.35rem' }}>
                   Title *
                 </label>
                 <input
@@ -1592,7 +1596,7 @@ export default function MemoryVaultPage() {
                     width: '100%',
                     boxSizing: 'border-box',
                     padding: '0.6rem 0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                     outline: 'none',
@@ -1601,7 +1605,7 @@ export default function MemoryVaultPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.35rem' }}>
                   Category
                 </label>
                 <input
@@ -1612,7 +1616,7 @@ export default function MemoryVaultPage() {
                     width: '100%',
                     boxSizing: 'border-box',
                     padding: '0.6rem 0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                     outline: 'none',
@@ -1621,7 +1625,7 @@ export default function MemoryVaultPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.35rem' }}>
                   Tags
                 </label>
                 <input
@@ -1632,7 +1636,7 @@ export default function MemoryVaultPage() {
                     width: '100%',
                     boxSizing: 'border-box',
                     padding: '0.6rem 0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                     outline: 'none',
@@ -1641,7 +1645,7 @@ export default function MemoryVaultPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.35rem' }}>
                   Content *
                 </label>
                 <textarea
@@ -1653,7 +1657,7 @@ export default function MemoryVaultPage() {
                     width: '100%',
                     boxSizing: 'border-box',
                     padding: '0.65rem 0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '0.9rem',
                     outline: 'none',
@@ -1668,9 +1672,9 @@ export default function MemoryVaultPage() {
                   type="button"
                   onClick={() => setEditingMemory(null)}
                   style={{
-                    backgroundColor: '#ffffff',
-                    color: '#475569',
-                    border: '1px solid #cbd5e1',
+                    backgroundColor: 'var(--color-surface)',
+                    color: 'var(--color-secondary-text)',
+                    border: '1px solid var(--color-border)',
                     padding: '0.6rem 1.1rem',
                     borderRadius: '8px',
                     fontWeight: 600,
@@ -1684,8 +1688,8 @@ export default function MemoryVaultPage() {
                   type="submit"
                   disabled={isSubmitting}
                   style={{
-                    backgroundColor: isSubmitting ? '#94a3b8' : '#0284c7',
-                    color: '#ffffff',
+                    backgroundColor: isSubmitting ? 'var(--color-disabled)' : 'var(--color-primary)',
+                    color: 'var(--color-surface)',
                     border: 'none',
                     padding: '0.6rem 1.25rem',
                     borderRadius: '8px',
@@ -1710,7 +1714,7 @@ export default function MemoryVaultPage() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.5)',
+          backgroundColor: 'rgba(var(--color-text-rgb), 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1718,36 +1722,36 @@ export default function MemoryVaultPage() {
           zIndex: 100,
         }}>
           <div style={{
-            backgroundColor: '#ffffff',
+            backgroundColor: 'var(--color-surface)',
             borderRadius: '16px',
             width: '100%',
             maxWidth: '680px',
             maxHeight: '90vh',
             overflowY: 'auto',
             padding: '2rem',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 20px 25px -5px rgba(var(--color-text-rgb), 0.1)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-secondary-text)', fontWeight: 600, textTransform: 'uppercase' }}>
                   {viewingMemory.category || 'Uncategorized'}
                 </div>
-                <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#0f172a', margin: '0.25rem 0 0 0' }}>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--color-text)', margin: '0.25rem 0 0 0' }}>
                   {viewingMemory.title}
                 </h2>
               </div>
-              <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-disabled)' }}>
                 {formatDate(viewingMemory.createdAt)}
               </span>
             </div>
 
             <div style={{
-              backgroundColor: '#f8fafc',
+              backgroundColor: 'var(--color-background)',
               padding: '1.25rem',
               borderRadius: '12px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--color-border)',
               fontSize: '0.95rem',
-              color: '#334155',
+              color: 'var(--color-text)',
               lineHeight: 1.6,
               whiteSpace: 'pre-wrap',
               marginBottom: '1.25rem',
@@ -1762,8 +1766,8 @@ export default function MemoryVaultPage() {
                 {viewingMemory.tags.split(',').map((t, idx) => (
                   <span key={idx} style={{
                     fontSize: '0.75rem',
-                    backgroundColor: '#e0f2fe',
-                    color: '#0369a1',
+                    backgroundColor: 'var(--color-accent-soft)',
+                    color: 'var(--primary-hover)',
                     padding: '0.15rem 0.55rem',
                     borderRadius: '6px',
                     fontWeight: 600,
@@ -1777,7 +1781,7 @@ export default function MemoryVaultPage() {
             {/* MULTIMEDIA VAULT GALLERY */}
             <MediaGallery memoryId={viewingMemory.id} />
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid var(--color-background)' }}>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button
                   onClick={() => {
@@ -1786,9 +1790,9 @@ export default function MemoryVaultPage() {
                     openEditModal(m);
                   }}
                   style={{
-                    backgroundColor: '#f1f5f9',
-                    color: '#334155',
-                    border: '1px solid #cbd5e1',
+                    backgroundColor: 'var(--color-background)',
+                    color: 'var(--color-text)',
+                    border: '1px solid var(--color-border)',
                     padding: '0.5rem 1rem',
                     borderRadius: '8px',
                     fontWeight: 600,
@@ -1803,9 +1807,9 @@ export default function MemoryVaultPage() {
                     setDeletingMemoryId(viewingMemory.id);
                   }}
                   style={{
-                    backgroundColor: '#ffffff',
-                    color: '#ef4444',
-                    border: '1px solid #fca5a5',
+                    backgroundColor: 'var(--color-surface)',
+                    color: 'var(--color-error)',
+                    border: '1px solid var(--color-error-border)',
                     padding: '0.5rem 1rem',
                     borderRadius: '8px',
                     fontWeight: 600,
@@ -1820,8 +1824,8 @@ export default function MemoryVaultPage() {
               <button
                 onClick={() => setViewingMemory(null)}
                 style={{
-                  backgroundColor: '#0284c7',
-                  color: '#ffffff',
+                  backgroundColor: 'var(--color-primary)',
+                  color: 'var(--color-surface)',
                   border: 'none',
                   padding: '0.5rem 1.25rem',
                   borderRadius: '8px',
@@ -1845,7 +1849,7 @@ export default function MemoryVaultPage() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.5)',
+          backgroundColor: 'rgba(var(--color-text-rgb), 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1853,20 +1857,20 @@ export default function MemoryVaultPage() {
           zIndex: 110,
         }}>
           <div style={{
-            backgroundColor: '#ffffff',
+            backgroundColor: 'var(--color-surface)',
             borderRadius: '16px',
             width: '100%',
             maxWidth: '420px',
             padding: '2rem',
             textAlign: 'center',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 20px 25px -5px rgba(var(--color-text-rgb), 0.1)',
           }}>
             <div style={{
               width: '48px',
               height: '48px',
               borderRadius: '50%',
-              backgroundColor: '#fef2f2',
-              color: '#dc2626',
+              backgroundColor: 'var(--color-error-background)',
+              color: 'var(--color-error)',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1876,10 +1880,10 @@ export default function MemoryVaultPage() {
             }}>
               !
             </div>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.5rem 0' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--color-text)', margin: '0 0 0.5rem 0' }}>
               Delete Memory?
             </h3>
-            <p style={{ fontSize: '0.875rem', color: '#64748b', margin: '0 0 1.5rem 0' }}>
+            <p style={{ fontSize: '0.875rem', color: 'var(--color-secondary-text)', margin: '0 0 1.5rem 0' }}>
               Are you sure you want to delete this memory? This action cannot be undone.
             </p>
 
@@ -1888,9 +1892,9 @@ export default function MemoryVaultPage() {
                 onClick={() => setDeletingMemoryId(null)}
                 disabled={isSubmitting}
                 style={{
-                  backgroundColor: '#ffffff',
-                  color: '#475569',
-                  border: '1px solid #cbd5e1',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-secondary-text)',
+                  border: '1px solid var(--color-border)',
                   padding: '0.6rem 1.25rem',
                   borderRadius: '8px',
                   fontWeight: 600,
@@ -1904,8 +1908,8 @@ export default function MemoryVaultPage() {
                 onClick={handleDeleteConfirm}
                 disabled={isSubmitting}
                 style={{
-                  backgroundColor: isSubmitting ? '#fca5a5' : '#dc2626',
-                  color: '#ffffff',
+                  backgroundColor: isSubmitting ? 'var(--color-error-border)' : 'var(--color-error)',
+                  color: 'var(--color-surface)',
                   border: 'none',
                   padding: '0.6rem 1.25rem',
                   borderRadius: '8px',
@@ -1929,7 +1933,7 @@ export default function MemoryVaultPage() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.5)',
+          backgroundColor: 'rgba(var(--color-text-rgb), 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1937,44 +1941,44 @@ export default function MemoryVaultPage() {
           zIndex: 1000,
         }}>
           <div style={{
-            backgroundColor: '#ffffff',
+            backgroundColor: 'var(--color-surface)',
             borderRadius: '16px',
             maxWidth: '520px',
             width: '100%',
             padding: '1.75rem',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
-            border: '1px solid #e2e8f0',
+            boxShadow: '0 20px 25px -5px rgba(var(--color-text-rgb), 0.1)',
+            border: '1px solid var(--color-border)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
               <span style={{ fontSize: '1.25rem' }}>✨</span>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
                 AI Memory Analysis
               </h3>
             </div>
-            <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1.25rem' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-secondary-text)', marginBottom: '1.25rem' }}>
               Insights generated for: <strong>{aiModalResult.memoryTitle}</strong>
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div style={{ backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+              <div style={{ backgroundColor: 'var(--color-background)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary-text)', textTransform: 'uppercase' }}>
                   Deterministic Summary
                 </span>
-                <p style={{ fontSize: '0.9rem', color: '#1e293b', margin: '0.35rem 0 0 0', lineHeight: 1.45 }}>
+                <p style={{ fontSize: '0.9rem', color: 'var(--color-text)', margin: '0.35rem 0 0 0', lineHeight: 1.45 }}>
                   {aiModalResult.result.summary}
                 </p>
               </div>
 
-              <div style={{ backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+              <div style={{ backgroundColor: 'var(--color-background)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary-text)', textTransform: 'uppercase' }}>
                   Suggested Category
                 </span>
                 <div style={{ marginTop: '0.35rem' }}>
                   <span style={{
                     fontSize: '0.8rem',
                     fontWeight: 700,
-                    backgroundColor: '#e0f2fe',
-                    color: '#0369a1',
+                    backgroundColor: 'var(--color-accent-soft)',
+                    color: 'var(--primary-hover)',
                     padding: '0.2rem 0.6rem',
                     borderRadius: '9999px',
                   }}>
@@ -1983,16 +1987,16 @@ export default function MemoryVaultPage() {
                 </div>
               </div>
 
-              <div style={{ backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+              <div style={{ backgroundColor: 'var(--color-background)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary-text)', textTransform: 'uppercase' }}>
                   Suggested Tags
                 </span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.35rem' }}>
                   {aiModalResult.result.suggestedTags.map((tag, idx) => (
                     <span key={idx} style={{
                       fontSize: '0.75rem',
-                      backgroundColor: '#f1f5f9',
-                      color: '#334155',
+                      backgroundColor: 'var(--color-background)',
+                      color: 'var(--color-text)',
                       padding: '0.15rem 0.5rem',
                       borderRadius: '4px',
                       fontWeight: 500,
@@ -2008,8 +2012,8 @@ export default function MemoryVaultPage() {
               <button
                 onClick={() => setAiModalResult(null)}
                 style={{
-                  backgroundColor: '#0f172a',
-                  color: '#ffffff',
+                  backgroundColor: 'var(--color-text)',
+                  color: 'var(--color-surface)',
                   border: 'none',
                   padding: '0.5rem 1.25rem',
                   borderRadius: '8px',
