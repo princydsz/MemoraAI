@@ -87,9 +87,9 @@ public class MediaService {
                     MAX_MEDIA_PER_MEMORY, currentCount, files.size()));
         }
 
-        // Pre-validate all image files (content-type magic bytes and size) before storing anything in MinIO
+        // Pre-validate all media files (content-type magic bytes and size) before storing anything in MinIO
         for (MultipartFile file : files) {
-            storageService.validateImage(file);
+            storageService.validateMedia(file);
         }
 
         // Upload to MinIO with all-or-nothing rollback compensation
@@ -118,7 +118,7 @@ public class MediaService {
 
         try {
             for (MultipartFile file : files) {
-                StorageService.UploadResult uploadResult = storageService.uploadImage(user.getId(), memoryId, file);
+                StorageService.UploadResult uploadResult = storageService.uploadMedia(user.getId(), memoryId, file);
                 uploadedResults.add(uploadResult);
             }
 

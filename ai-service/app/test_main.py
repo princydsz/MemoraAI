@@ -4,6 +4,12 @@ import struct
 import unittest
 import wave
 import json
+import sys
+import shutil
+
+_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _parent_dir not in sys.path:
+    sys.path.insert(0, _parent_dir)
 from unittest.mock import patch, MagicMock
 
 try:
@@ -30,7 +36,7 @@ except ImportError:
     HAS_FASTAPI = False
     client = None
     generate_embedding = None
-    GEMINI_MODEL = "gemini-2.5-flash"
+    GEMINI_MODEL = "gemini-3.5-flash"
     redact_sensitive_info = None
     RagMemoryItem = None
     httpx = None
@@ -166,7 +172,7 @@ class TestAiService(unittest.TestCase):
             data = response.json()
             self.assertEqual(data["answer"], "General answer.")
             self.assertEqual(data["provider"], "gemini")
-            self.assertEqual(data["model"], "gemini-2.5-flash")
+            self.assertEqual(data["model"], "gemini-3.5-flash")
             self.assertEqual(mock_client_cls.return_value.__enter__.return_value.post.call_count, 1)
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
@@ -193,7 +199,7 @@ class TestAiService(unittest.TestCase):
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     def test_model_configuration(self):
-        self.assertEqual(GEMINI_MODEL, "gemini-2.5-flash")
+        self.assertEqual(GEMINI_MODEL, "gemini-3.5-flash")
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     def test_redact_sensitive_info_utility(self):
@@ -263,7 +269,7 @@ class TestAiService(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             data = response.json()
             self.assertEqual(data["provider"], "gemini")
-            self.assertEqual(data["model"], "gemini-2.5-flash")
+            self.assertEqual(data["model"], "gemini-3.5-flash")
             self.assertIn("Blue Bottle Cafe", data["answer"])
             _, request_args = mock_client.post.call_args
             user_content = json.loads(request_args["json"]["contents"][0]["parts"][0]["text"])
@@ -305,7 +311,7 @@ class TestAiService(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             data = response.json()
             self.assertEqual(data["answer"], "You bought a MacBook Pro in September.")
-            self.assertEqual(data["model"], "gemini-2.5-flash")
+            self.assertEqual(data["model"], "gemini-3.5-flash")
             args, kwargs = mock_client.post.call_args
             self.assertNotIn("dummy_test_key_123", args[0])
             self.assertEqual(kwargs["headers"]["x-goog-api-key"], "dummy_test_key_123")
@@ -338,7 +344,7 @@ class TestAiService(unittest.TestCase):
             response = client.post("/rag/answer", json=payload)
             self.assertEqual(response.status_code, 502)
             detail = response.json()["detail"]
-            self.assertIn("model 'gemini-2.5-flash' was not found", detail)
+            self.assertIn("model 'gemini-3.5-flash' was not found", detail)
             self.assertNotIn(secret_key, detail)
             self.assertNotIn(sensitive_memory, detail)
 
@@ -466,7 +472,7 @@ class TestAiService(unittest.TestCase):
         mock_resp_429.json.return_value = {
             "error": {
                 "code": 429,
-                "message": "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash",
+                "message": "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.5-flash",
                 "status": "RESOURCE_EXHAUSTED"
             }
         }
@@ -1011,7 +1017,7 @@ class TestAiService(unittest.TestCase):
                 self.assertIn(created_temp_files[-1], closed_handles, "File handle must be closed on write exception")
                 self.assertFalse(os.path.exists(created_temp_files[-1]), "Temporary file must be deleted after write exception")
 
-    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    @unittest.skipUnless(HAS_FASTAPI and shutil.which("ffmpeg") and shutil.which("ffprobe"), "FastAPI and ffmpeg/ffprobe required for webm stream generation and duration probing")
     def test_transcribe_valid_webm_without_container_duration_metadata(self):
         webm_bytes = self._create_webm_without_duration(duration_seconds=2.0)
         files = {"file": ("recording.webm", webm_bytes, "audio/webm")}
@@ -1045,7 +1051,7 @@ class TestAiService(unittest.TestCase):
             data = response.json()
             self.assertIn("could not determine audio duration", data["detail"].lower())
 
-    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    @unittest.skipUnless(HAS_FASTAPI and shutil.which("ffmpeg") and shutil.which("ffprobe"), "FastAPI and ffmpeg/ffprobe required for webm stream generation and duration probing")
     def test_transcribe_webm_exceeding_duration_limit_rejected(self):
         webm_bytes = self._create_webm_without_duration(duration_seconds=10.0)
         files = {"file": ("long.webm", webm_bytes, "audio/webm")}
@@ -1054,6 +1060,465 @@ class TestAiService(unittest.TestCase):
             self.assertEqual(response.status_code, 422)
             data = response.json()
             self.assertIn("exceeds the maximum allowed limit", data["detail"].lower())
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_whisper_local_multilingual_code_switching_defaults(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=2.0)
+        files = {"file": ("mixed_sample.wav", wav_bytes, "audio/wav")}
+
+        mock_segment = MagicMock()
+        mock_segment.text = "आज morning मध्ये meeting आहे."
+        mock_info = MagicMock()
+        mock_info.language = "hi"
+        mock_info.duration = 2.0
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([mock_segment], mock_info)
+
+        with patch.dict(os.environ, {"STT_PROVIDER": "whisper-local"}):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                # Automatic language detection (no language supplied)
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                call_kwargs = mock_model.transcribe.call_args.kwargs
+                # Must enable multilingual segment re-detection
+                self.assertTrue(call_kwargs.get("multilingual"),
+                                "Automatic language detection must enable multilingual=True for code-switching")
+                # Must provide conservative mixed-script initial prompt
+                self.assertEqual(call_kwargs.get("initial_prompt"), "English, हिन्दी, मराठी.",
+                                 "Default initial prompt must contain English, Hindi, and Marathi context")
+                # Language must remain None to trigger auto-detection
+                self.assertIsNone(call_kwargs.get("language"))
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_whisper_local_explicit_language_preserves_override(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=2.0)
+        files = {"file": ("marathi_sample.wav", wav_bytes, "audio/wav")}
+
+        mock_segment = MagicMock()
+        mock_segment.text = "हे फक्त मराठी आहे."
+        mock_info = MagicMock()
+        mock_info.language = "mr"
+        mock_info.duration = 2.0
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([mock_segment], mock_info)
+
+        with patch.dict(os.environ, {"STT_PROVIDER": "whisper-local"}):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                # Explicit language override for Marathi
+                response = client.post("/transcribe", files=files, data={"language": "mr"})
+                self.assertEqual(response.status_code, 200)
+                call_kwargs = mock_model.transcribe.call_args.kwargs
+                # Explicit language selection must NOT enable multilingual segment switching
+                self.assertFalse(call_kwargs.get("multilingual"),
+                                 "Explicit language selection must keep multilingual=False")
+                # Explicit language selection must preserve user language
+                self.assertEqual(call_kwargs.get("language"), "mr")
+                # Initial prompt should be omitted to avoid interfering with single-language override
+                self.assertIsNone(call_kwargs.get("initial_prompt"))
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_whisper_local_multilingual_toggle_env(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=1.0)
+        files = {"file": ("sample.wav", wav_bytes, "audio/wav")}
+
+        mock_segment = MagicMock()
+        mock_segment.text = "Single language speech."
+        mock_info = MagicMock()
+        mock_info.language = "en"
+        mock_info.duration = 1.0
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([mock_segment], mock_info)
+
+        with patch.dict(os.environ, {
+            "STT_PROVIDER": "whisper-local",
+            "WHISPER_MULTILINGUAL": "false",
+        }):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                call_kwargs = mock_model.transcribe.call_args.kwargs
+                self.assertFalse(call_kwargs.get("multilingual"))
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_whisper_local_custom_initial_prompt_env(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=1.0)
+        files = {"file": ("sample.wav", wav_bytes, "audio/wav")}
+
+        mock_segment = MagicMock()
+        mock_segment.text = "Custom prompt test."
+        mock_info = MagicMock()
+        mock_info.language = "hi"
+        mock_info.duration = 1.0
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([mock_segment], mock_info)
+
+        custom_prompt = "English, Hindi, Marathi reflections and notes."
+        with patch.dict(os.environ, {
+            "STT_PROVIDER": "whisper-local",
+            "WHISPER_INITIAL_PROMPT": custom_prompt,
+        }):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                call_kwargs = mock_model.transcribe.call_args.kwargs
+                self.assertEqual(call_kwargs.get("initial_prompt"), custom_prompt)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_whisper_local_preserves_mixed_script_output(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=4.0)
+        files = {"file": ("code_switched.wav", wav_bytes, "audio/wav")}
+
+        # Simulate 3 segments containing mixed scripts:
+        # Segment 1: Marathi + English
+        # Segment 2: English Latin script
+        # Segment 3: Hindi + English
+        seg1 = MagicMock()
+        seg1.text = "आज team meeting आहे."
+        seg2 = MagicMock()
+        seg2.text = "We reviewed the quarterly deliverables and action items."
+        seg3 = MagicMock()
+        seg3.text = "कल सुबह 10 बजे presentation schedule किया गया है।"
+
+        mock_info = MagicMock()
+        mock_info.language = "hi"
+        mock_info.duration = 4.0
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([seg1, seg2, seg3], mock_info)
+
+        with patch.dict(os.environ, {"STT_PROVIDER": "whisper-local"}):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                expected = (
+                    "आज team meeting आहे. "
+                    "We reviewed the quarterly deliverables and action items. "
+                    "कल सुबह 10 बजे presentation schedule किया गया है।"
+                )
+                self.assertEqual(data["transcript"], expected,
+                                 "Mixed Latin and Devanagari scripts must be preserved verbatim without transliteration")
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_fallback_bypassed_for_pure_english(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=2.0)
+        files = {"file": ("english.wav", wav_bytes, "audio/wav")}
+
+        mock_seg = MagicMock()
+        mock_seg.text = "This is a strictly English speech sample."
+        mock_info = MagicMock()
+        mock_info.language = "en"
+        mock_info.language_probability = 0.95
+        mock_info.duration = 2.0
+        mock_info.all_language_probs = [("en", 0.95), ("de", 0.02), ("fr", 0.01), ("hi", 0.001)]
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([mock_seg], mock_info)
+
+        with patch.dict(os.environ, {"STT_PROVIDER": "whisper-local"}):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertEqual(data["transcript"], "This is a strictly English speech sample.")
+                self.assertEqual(data["detectedLanguage"], "en")
+                self.assertFalse(data.get("codeSwitchFallbackApplied"))
+                # Crucial: model.transcribe must be invoked exactly ONCE (no second pass)
+                self.assertEqual(mock_model.transcribe.call_count, 1)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_fallback_bypassed_for_pure_hindi(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=2.0)
+        files = {"file": ("hindi.wav", wav_bytes, "audio/wav")}
+
+        mock_seg = MagicMock()
+        mock_seg.text = "यह केवल हिंदी भाषा में एक ऑडियो क्लिप है।"
+        mock_info = MagicMock()
+        mock_info.language = "hi"
+        mock_info.language_probability = 0.85
+        mock_info.duration = 2.0
+        mock_info.all_language_probs = [("hi", 0.85), ("mr", 0.10), ("en", 0.02)]
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([mock_seg], mock_info)
+
+        with patch.dict(os.environ, {"STT_PROVIDER": "whisper-local"}):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertEqual(data["transcript"], "यह केवल हिंदी भाषा में एक ऑडियो क्लिप है।")
+                self.assertEqual(data["detectedLanguage"], "hi")
+                self.assertFalse(data.get("codeSwitchFallbackApplied"))
+                self.assertEqual(mock_model.transcribe.call_count, 1)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_fallback_bypassed_for_pure_marathi(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=2.0)
+        files = {"file": ("marathi.wav", wav_bytes, "audio/wav")}
+
+        mock_seg = MagicMock()
+        mock_seg.text = "हे फक्त मराठीत रेकॉर्ड केलेले संभाषण आहे."
+        mock_info = MagicMock()
+        mock_info.language = "mr"
+        mock_info.language_probability = 0.72
+        mock_info.duration = 2.0
+        mock_info.all_language_probs = [("mr", 0.72), ("hi", 0.25), ("en", 0.01)]
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([mock_seg], mock_info)
+
+        with patch.dict(os.environ, {"STT_PROVIDER": "whisper-local"}):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertEqual(data["transcript"], "हे फक्त मराठीत रेकॉर्ड केलेले संभाषण आहे.")
+                self.assertEqual(data["detectedLanguage"], "mr")
+                self.assertFalse(data.get("codeSwitchFallbackApplied"))
+                self.assertEqual(mock_model.transcribe.call_count, 1)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_fallback_triggered_for_mixed_code_switched_audio(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=3.0)
+        files = {"file": ("mixed.wav", wav_bytes, "audio/wav")}
+
+        # Pass 1: Whisper detects primary 'en' with 0.54 prob, Indic sum = 0.44 (hi: 0.38 + mr: 0.06)
+        # Baseline output translated Indic speech into English
+        baseline_seg = MagicMock()
+        baseline_seg.text = "I can speak English. I also know Hindi. I also know Marathi."
+        pass1_info = MagicMock()
+        pass1_info.language = "en"
+        pass1_info.language_probability = 0.54
+        pass1_info.duration = 3.0
+        pass1_info.all_language_probs = [("en", 0.54), ("hi", 0.38), ("mr", 0.06), ("ur", 0.01)]
+
+        # Pass 2: Gated fallback with Hindi conditioning preserves original Latin and Devanagari scripts
+        fb_seg1 = MagicMock()
+        fb_seg1.text = "I can speak in English."
+        fb_seg2 = MagicMock()
+        fb_seg2.text = "और मुझे हिंदी आती है।"
+        fb_seg3 = MagicMock()
+        fb_seg3.text = "आणि मला मराठी पण येते।"
+        pass2_info = MagicMock()
+        pass2_info.language = "hi"
+        pass2_info.duration = 3.0
+
+        mock_model = MagicMock()
+        mock_model.transcribe.side_effect = [
+            ([baseline_seg], pass1_info),
+            ([fb_seg1, fb_seg2, fb_seg3], pass2_info)
+        ]
+
+        with patch.dict(os.environ, {"STT_PROVIDER": "whisper-local"}):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+
+                # Verify fallback output replaces translated baseline
+                expected_transcript = "I can speak in English. और मुझे हिंदी आती है। आणि मला मराठी पण येते।"
+                self.assertEqual(data["transcript"], expected_transcript)
+                # Primary detected language remains 'en' (not overwritten with 'hi')
+                self.assertEqual(data["detectedLanguage"], "en")
+                self.assertTrue(data.get("codeSwitchFallbackApplied"))
+
+                # Verify model.transcribe was called twice
+                self.assertEqual(mock_model.transcribe.call_count, 2)
+                calls = mock_model.transcribe.call_args_list
+
+                # Pass 1 arguments: auto-detection with baseline beam_size=5
+                pass1_kwargs = calls[0].kwargs
+                self.assertIsNone(pass1_kwargs.get("language"))
+                self.assertEqual(pass1_kwargs.get("beam_size"), 5)
+                self.assertTrue(pass1_kwargs.get("multilingual"))
+
+                # Pass 2 arguments: Hindi conditioning with fallback beam_size=3
+                pass2_kwargs = calls[1].kwargs
+                self.assertEqual(pass2_kwargs.get("language"), "hi")
+                self.assertEqual(pass2_kwargs.get("beam_size"), 3)
+                self.assertEqual(pass2_kwargs.get("best_of"), 3)
+                self.assertFalse(pass2_kwargs.get("multilingual"))
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_fallback_bypassed_when_explicit_language_override_provided(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=2.0)
+        files = {"file": ("override.wav", wav_bytes, "audio/wav")}
+
+        # Even if P(en) <= 0.75 and Indic sum >= 0.20, user explicit language override MUST NOT trigger fallback
+        mock_seg = MagicMock()
+        mock_seg.text = "This is English override speech."
+        mock_info = MagicMock()
+        mock_info.language = "en"
+        mock_info.language_probability = 0.50
+        mock_info.duration = 2.0
+        mock_info.all_language_probs = [("en", 0.50), ("hi", 0.45)]
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([mock_seg], mock_info)
+
+        with patch.dict(os.environ, {"STT_PROVIDER": "whisper-local"}):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files, data={"language": "en"})
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertEqual(data["transcript"], "This is English override speech.")
+                self.assertEqual(data["detectedLanguage"], "en")
+                self.assertFalse(data.get("codeSwitchFallbackApplied"))
+                # Only 1 pass because language was explicitly provided
+                self.assertEqual(mock_model.transcribe.call_count, 1)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_fallback_disabled_via_env_toggle(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=2.0)
+        files = {"file": ("mixed.wav", wav_bytes, "audio/wav")}
+
+        mock_seg = MagicMock()
+        mock_seg.text = "Baseline transcript."
+        mock_info = MagicMock()
+        mock_info.language = "en"
+        mock_info.language_probability = 0.54
+        mock_info.duration = 2.0
+        mock_info.all_language_probs = [("en", 0.54), ("hi", 0.38)]
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([mock_seg], mock_info)
+
+        with patch.dict(os.environ, {
+            "STT_PROVIDER": "whisper-local",
+            "WHISPER_CODE_SWITCH_FALLBACK": "false",
+        }):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertEqual(data["transcript"], "Baseline transcript.")
+                self.assertFalse(data.get("codeSwitchFallbackApplied"))
+                self.assertEqual(mock_model.transcribe.call_count, 1)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_fallback_handles_missing_or_corrupt_all_language_probs_safely(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=2.0)
+        files = {"file": ("missing_probs.wav", wav_bytes, "audio/wav")}
+
+        # Test case: info object has no all_language_probs or None
+        mock_seg = MagicMock()
+        mock_seg.text = "Speech without prob distribution."
+        mock_info = MagicMock()
+        mock_info.language = "en"
+        mock_info.language_probability = 0.60
+        mock_info.duration = 2.0
+        mock_info.all_language_probs = None
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([mock_seg], mock_info)
+
+        with patch.dict(os.environ, {"STT_PROVIDER": "whisper-local"}):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertEqual(data["transcript"], "Speech without prob distribution.")
+                self.assertFalse(data.get("codeSwitchFallbackApplied"))
+                self.assertEqual(mock_model.transcribe.call_count, 1)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_fallback_baseline_retained_when_gate_does_not_trigger(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=2.0)
+        files = {"file": ("european_multilingual.wav", wav_bytes, "audio/wav")}
+
+        # P(en) <= 0.75, but secondary languages are German and Spanish, not Indic languages
+        mock_seg = MagicMock()
+        mock_seg.text = "English and German baseline transcription."
+        mock_info = MagicMock()
+        mock_info.language = "en"
+        mock_info.language_probability = 0.65
+        mock_info.duration = 2.0
+        mock_info.all_language_probs = [("en", 0.65), ("de", 0.25), ("es", 0.08), ("hi", 0.01)]
+
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = ([mock_seg], mock_info)
+
+        with patch.dict(os.environ, {"STT_PROVIDER": "whisper-local"}):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertEqual(data["transcript"], "English and German baseline transcription.")
+                self.assertFalse(data.get("codeSwitchFallbackApplied"))
+                self.assertEqual(mock_model.transcribe.call_count, 1)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_fallback_beam_size_guards_against_beam_size_1(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=2.0)
+        files = {"file": ("mixed.wav", wav_bytes, "audio/wav")}
+
+        mock_seg = MagicMock()
+        mock_seg.text = "Baseline speech."
+        pass1_info = MagicMock()
+        pass1_info.language = "en"
+        pass1_info.language_probability = 0.54
+        pass1_info.duration = 2.0
+        pass1_info.all_language_probs = [("en", 0.54), ("hi", 0.38)]
+
+        fb_seg = MagicMock()
+        fb_seg.text = "Fallback speech."
+        pass2_info = MagicMock()
+        pass2_info.language = "hi"
+        pass2_info.duration = 2.0
+
+        mock_model = MagicMock()
+        mock_model.transcribe.side_effect = [
+            ([mock_seg], pass1_info),
+            ([fb_seg], pass2_info)
+        ]
+
+        # Even if WHISPER_FALLBACK_BEAM_SIZE is configured as 1, the safeguard must reset it to >= 2 (default 3)
+        with patch.dict(os.environ, {
+            "STT_PROVIDER": "whisper-local",
+            "WHISPER_FALLBACK_BEAM_SIZE": "1",
+        }):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                calls = mock_model.transcribe.call_args_list
+                self.assertEqual(len(calls), 2)
+                pass2_kwargs = calls[1].kwargs
+                self.assertGreaterEqual(pass2_kwargs.get("beam_size"), 2, "beam_size=1 must be strictly forbidden in fallback")
+                self.assertEqual(pass2_kwargs.get("beam_size"), 3)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    def test_transcribe_fallback_retains_baseline_if_fallback_fails(self):
+        wav_bytes = self._create_synthetic_wav(duration_seconds=2.0)
+        files = {"file": ("mixed.wav", wav_bytes, "audio/wav")}
+
+        mock_seg = MagicMock()
+        mock_seg.text = "Baseline text retained on fallback failure."
+        pass1_info = MagicMock()
+        pass1_info.language = "en"
+        pass1_info.language_probability = 0.54
+        pass1_info.duration = 2.0
+        pass1_info.all_language_probs = [("en", 0.54), ("hi", 0.38)]
+
+        mock_model = MagicMock()
+        # Pass 1 succeeds, Pass 2 raises exception
+        mock_model.transcribe.side_effect = [
+            ([mock_seg], pass1_info),
+            RuntimeError("Unexpected decoder failure during fallback pass")
+        ]
+
+        with patch.dict(os.environ, {"STT_PROVIDER": "whisper-local"}):
+            with patch("app.main.get_whisper_model", return_value=mock_model):
+                response = client.post("/transcribe", files=files)
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertEqual(data["transcript"], "Baseline text retained on fallback failure.")
+                self.assertFalse(data.get("codeSwitchFallbackApplied"))
+                self.assertEqual(mock_model.transcribe.call_count, 2)
 
 if __name__ == "__main__":
     unittest.main()

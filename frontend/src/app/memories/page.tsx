@@ -530,40 +530,24 @@ export default function MemoryVaultPage() {
 
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <button
+                type="button"
+                className="secondary-button"
                 onClick={() => setIsVoiceModalOpen(true)}
                 style={{
-                  backgroundColor: 'var(--color-surface)',
-                  color: 'var(--color-text)',
-                  border: '1px solid var(--color-border)',
-                  padding: '0.65rem 1.15rem',
-                  borderRadius: '8px',
-                  fontWeight: 600,
+                  padding: '0.65rem 1.25rem',
                   fontSize: '0.9rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  boxShadow: '0 1px 2px rgba(var(--color-text-rgb), 0.05)',
                 }}
               >
                 <span>🎙️</span>
                 <span>Record Voice</span>
               </button>
               <button
+                type="button"
+                className="primary-button"
                 onClick={openCreateModal}
                 style={{
-                  backgroundColor: 'var(--color-primary)',
-                  color: 'var(--color-surface)',
-                  border: 'none',
-                  padding: '0.65rem 1.25rem',
-                  borderRadius: '8px',
-                  fontWeight: 600,
+                  padding: '0.65rem 1.35rem',
                   fontSize: '0.9rem',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 4px rgba(var(--color-primary-rgb), 0.25)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
                 }}
               >
                 + Create Memory
@@ -893,65 +877,33 @@ export default function MemoryVaultPage() {
                       color: 'var(--color-disabled)',
                     }}>
                       <span>{formatDate(mem.createdAt)}</span>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
                         <button
+                          type="button"
+                          className="memory-card-action-btn memory-card-action-btn--ai"
                           onClick={() => handleAiProcess(mem)}
                           disabled={aiProcessingId === mem.id}
-                          style={{
-                            backgroundColor: 'var(--color-accent-soft)',
-                            border: '1px solid var(--color-accent-border)',
-                            color: 'var(--primary-hover)',
-                            fontWeight: 600,
-                            cursor: aiProcessingId === mem.id ? 'not-allowed' : 'pointer',
-                            fontSize: '0.75rem',
-                            padding: '0.15rem 0.45rem',
-                            borderRadius: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.2rem',
-                          }}
                         >
                           {aiProcessingId === mem.id ? 'Processing...' : '✨ AI Process'}
                         </button>
                         <button
+                          type="button"
+                          className="memory-card-action-btn memory-card-action-btn--view"
                           onClick={() => setViewingMemory(mem)}
-                          style={{
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            color: 'var(--primary-hover)',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            fontSize: '0.8rem',
-                            padding: 0,
-                          }}
                         >
                           View
                         </button>
                         <button
+                          type="button"
+                          className="memory-card-action-btn memory-card-action-btn--edit"
                           onClick={() => openEditModal(mem)}
-                          style={{
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            color: 'var(--color-secondary-text)',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            fontSize: '0.8rem',
-                            padding: 0,
-                          }}
                         >
                           Edit
                         </button>
                         <button
+                          type="button"
+                          className="memory-card-action-btn memory-card-action-btn--delete"
                           onClick={() => setDeletingMemoryId(mem.id)}
-                          style={{
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            color: 'var(--color-error)',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            fontSize: '0.8rem',
-                            padding: 0,
-                          }}
                         >
                           Delete
                         </button>
@@ -1154,7 +1106,7 @@ export default function MemoryVaultPage() {
               <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                   <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)' }}>
-                    Attach Images (Optional)
+                    Attach Media (Photos & Audio)
                   </label>
                   <span style={{
                     fontSize: '0.75rem',
@@ -1188,7 +1140,7 @@ export default function MemoryVaultPage() {
                     style={{
                       border: isCreateDragging ? '2px dashed var(--color-primary)' : '2px dashed var(--color-border)',
                       backgroundColor: isCreateDragging ? 'var(--color-accent-soft)' : 'var(--color-background)',
-                      borderRadius: '8px',
+                      borderRadius: 'var(--radius-sm)',
                       padding: '0.85rem',
                       textAlign: 'center',
                       cursor: isSubmitting ? 'not-allowed' : 'pointer',
@@ -1200,18 +1152,18 @@ export default function MemoryVaultPage() {
                       ref={createFileInputRef}
                       type="file"
                       multiple
-                      accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                      accept="image/jpeg,image/png,image/webp,audio/webm,audio/wav,audio/mp4,audio/mpeg,audio/ogg,.jpg,.jpeg,.png,.webp,.webm,.wav,.mp4,.m4a,.mp3,.ogg"
                       disabled={isSubmitting}
                       onChange={(e) => handleCreateFilesSelected(e.target.files)}
                       style={{ display: 'none' }}
                     />
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
-                      <span style={{ fontSize: '1.25rem' }}>📷</span>
+                      <span style={{ fontSize: '1.25rem' }}>📷 🎙️</span>
                       <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text)' }}>
-                        Click or drag images to attach
+                        Click or drag photos or voice recordings to attach
                       </span>
                       <span style={{ fontSize: '0.75rem', color: 'var(--color-secondary-text)' }}>
-                        JPEG, PNG, or WEBP up to 10 MB each ({MAX_MEDIA_PER_MEMORY - createFiles.length} slot{MAX_MEDIA_PER_MEMORY - createFiles.length > 1 ? 's' : ''} remaining)
+                        Photos up to 10 MB, audio up to 25 MB ({MAX_MEDIA_PER_MEMORY - createFiles.length} slot{MAX_MEDIA_PER_MEMORY - createFiles.length > 1 ? 's' : ''} remaining)
                       </span>
                     </div>
                   </div>
@@ -1230,24 +1182,65 @@ export default function MemoryVaultPage() {
                         key={preview.id}
                         style={{
                           position: 'relative',
-                          backgroundColor: 'var(--color-background)',
-                          borderRadius: '8px',
+                          backgroundColor: 'var(--surface-muted)',
+                          borderRadius: 'var(--radius-sm)',
                           overflow: 'hidden',
                           border: '1px solid var(--color-border)',
                           display: 'flex',
                           flexDirection: 'column',
+                          boxShadow: 'var(--shadow-card)',
                         }}
                       >
                         <div style={{ height: '75px', width: '100%', position: 'relative' }}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={preview.url}
-                            alt={preview.file.name}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
+                          {preview.file.type.toLowerCase().startsWith('audio/') ? (
+                            <div style={{
+                              width: '100%',
+                              height: '100%',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: 'var(--surface-muted)',
+                              padding: '0.35rem',
+                              textAlign: 'center',
+                            }}>
+                              <div style={{
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '50%',
+                                backgroundColor: 'rgba(74, 142, 139, 0.12)',
+                                color: 'var(--accent-strong)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.85rem',
+                                marginBottom: '0.2rem',
+                              }}>
+                                🎙️
+                              </div>
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 600,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                width: '90%',
+                                color: 'var(--text)',
+                              }}>
+                                {preview.file.name}
+                              </span>
+                            </div>
+                          ) : (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={preview.url}
+                              alt={preview.file.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          )}
                           <button
                             type="button"
-                            title="Remove image"
+                            title="Remove attachment"
                             disabled={isSubmitting}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1306,7 +1299,7 @@ export default function MemoryVaultPage() {
                       cursor: isSubmitting ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    Done (Finish without images)
+                    Done (Finish without attachments)
                   </button>
                   <button
                     type="submit"
@@ -1322,7 +1315,7 @@ export default function MemoryVaultPage() {
                       cursor: isSubmitting || createFiles.length === 0 ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    {isSubmitting ? (uploadStatusText || 'Uploading...') : 'Retry Uploading Images'}
+                    {isSubmitting ? (uploadStatusText || 'Uploading...') : 'Retry Uploading Attachments'}
                   </button>
                 </div>
               ) : (
@@ -1708,70 +1701,153 @@ export default function MemoryVaultPage() {
 
       {/* VIEW MEMORY MODAL */}
       {viewingMemory && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(var(--color-text-rgb), 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1rem',
-          zIndex: 100,
-        }}>
-          <div style={{
-            backgroundColor: 'var(--color-surface)',
-            borderRadius: '16px',
-            width: '100%',
-            maxWidth: '680px',
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            padding: '2rem',
-            boxShadow: '0 20px 25px -5px rgba(var(--color-text-rgb), 0.1)',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-secondary-text)', fontWeight: 600, textTransform: 'uppercase' }}>
-                  {viewingMemory.category || 'Uncategorized'}
-                </div>
-                <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--color-text)', margin: '0.25rem 0 0 0' }}>
+        <div
+          className="memory-modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setViewingMemory(null);
+            }
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(62, 39, 35, 0.58)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.25rem',
+            zIndex: 120,
+          }}
+        >
+          <div
+            className="memory-view-dialog"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              width: 'min(90vw, 760px)',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              padding: '1.75rem 2rem',
+              boxShadow: 'var(--shadow-soft)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.25rem',
+              position: 'relative',
+              overscrollBehavior: 'contain',
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {viewingMemory.category && (
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      backgroundColor: 'rgba(74, 142, 139, 0.12)',
+                      color: 'var(--accent-strong)',
+                      padding: '0.2rem 0.65rem',
+                      borderRadius: '9999px',
+                      display: 'inline-block',
+                      marginBottom: '0.35rem',
+                    }}
+                  >
+                    {viewingMemory.category}
+                  </span>
+                )}
+                <h2
+                  style={{
+                    fontSize: '1.4rem',
+                    fontWeight: 700,
+                    color: 'var(--text)',
+                    margin: 0,
+                    lineHeight: 1.3,
+                    letterSpacing: '-0.02em',
+                    wordBreak: 'break-word',
+                  }}
+                >
                   {viewingMemory.title}
                 </h2>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--text-muted)',
+                    fontWeight: 500,
+                    marginTop: '0.35rem',
+                    display: 'block',
+                  }}
+                >
+                  Created {formatDate(viewingMemory.createdAt)}
+                </span>
               </div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--color-disabled)' }}>
-                {formatDate(viewingMemory.createdAt)}
-              </span>
+
+              <button
+                type="button"
+                onClick={() => setViewingMemory(null)}
+                aria-label="Close memory modal"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  fontSize: '1.25rem',
+                  cursor: 'pointer',
+                  padding: '0.35rem',
+                  borderRadius: '50%',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  lineHeight: 1,
+                  flexShrink: 0,
+                }}
+              >
+                ✕
+              </button>
             </div>
 
-            <div style={{
-              backgroundColor: 'var(--color-background)',
-              padding: '1.25rem',
-              borderRadius: '12px',
-              border: '1px solid var(--color-border)',
-              fontSize: '0.95rem',
-              color: 'var(--color-text)',
-              lineHeight: 1.6,
-              whiteSpace: 'pre-wrap',
-              marginBottom: '1.25rem',
-              maxHeight: '320px',
-              overflowY: 'auto',
-            }}>
+            {/* Memory Text Content */}
+            <div
+              style={{
+                backgroundColor: 'var(--surface-muted)',
+                padding: '1.25rem 1.4rem',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border)',
+                fontSize: '0.95rem',
+                color: 'var(--text)',
+                lineHeight: 1.65,
+                whiteSpace: 'pre-wrap',
+                maxHeight: '280px',
+                overflowY: 'auto',
+                wordBreak: 'break-word',
+                boxShadow: 'inset 0 1px 3px rgba(62, 39, 35, 0.04)',
+              }}
+            >
               {viewingMemory.content}
             </div>
 
+            {/* Tags */}
             {viewingMemory.tags && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                 {viewingMemory.tags.split(',').map((t, idx) => (
-                  <span key={idx} style={{
-                    fontSize: '0.75rem',
-                    backgroundColor: 'var(--color-accent-soft)',
-                    color: 'var(--primary-hover)',
-                    padding: '0.15rem 0.55rem',
-                    borderRadius: '6px',
-                    fontWeight: 600,
-                  }}>
+                  <span
+                    key={idx}
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      backgroundColor: 'var(--bg-strong)',
+                      color: 'var(--text-muted)',
+                      border: '1px solid var(--border)',
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '999px',
+                    }}
+                  >
                     #{t.trim()}
                   </span>
                 ))}
@@ -1781,58 +1857,49 @@ export default function MemoryVaultPage() {
             {/* MULTIMEDIA VAULT GALLERY */}
             <MediaGallery memoryId={viewingMemory.id} />
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid var(--color-background)' }}>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {/* Footer Actions */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+                paddingTop: '1rem',
+                borderTop: '1px solid var(--border)',
+                marginTop: 'auto',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <button
+                  type="button"
                   onClick={() => {
                     const m = viewingMemory;
                     setViewingMemory(null);
                     openEditModal(m);
                   }}
-                  style={{
-                    backgroundColor: 'var(--color-background)',
-                    color: 'var(--color-text)',
-                    border: '1px solid var(--color-border)',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '8px',
-                    fontWeight: 600,
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                  }}
+                  className="memory-card-action-btn memory-card-action-btn--edit"
+                  style={{ padding: '0.45rem 1.1rem', fontSize: '0.85rem' }}
                 >
-                  Edit
+                  Edit Memory
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setDeletingMemoryId(viewingMemory.id);
                   }}
-                  style={{
-                    backgroundColor: 'var(--color-surface)',
-                    color: 'var(--color-error)',
-                    border: '1px solid var(--color-error-border)',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '8px',
-                    fontWeight: 600,
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                  }}
+                  className="memory-card-action-btn memory-card-action-btn--delete"
+                  style={{ padding: '0.45rem 1.1rem', fontSize: '0.85rem' }}
                 >
-                  Delete
+                  Delete Memory
                 </button>
               </div>
 
               <button
+                type="button"
                 onClick={() => setViewingMemory(null)}
-                style={{
-                  backgroundColor: 'var(--color-primary)',
-                  color: 'var(--color-surface)',
-                  border: 'none',
-                  padding: '0.5rem 1.25rem',
-                  borderRadius: '8px',
-                  fontWeight: 600,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                }}
+                className="primary-button"
+                style={{ padding: '0.55rem 1.4rem', fontSize: '0.875rem' }}
               >
                 Close
               </button>

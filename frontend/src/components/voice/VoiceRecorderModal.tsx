@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Memory } from '../../types/memory';
 import { TranscribeResponse, VoiceRecordingState } from '../../types/voice';
 import { createMemoryApi } from '../../lib/memory';
+import { uploadMemoryMediaApi } from '../../lib/media';
 import {
   formatDuration,
   getPreferredAudioMimeType,
@@ -48,6 +49,8 @@ export default function VoiceRecorderModal({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [pendingSavedMemory, setPendingSavedMemory] = useState<Memory | null>(null);
+  const [audioUploadError, setAudioUploadError] = useState<string | null>(null);
 
   // Refs for audio handling and cleanup
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -81,6 +84,8 @@ export default function VoiceRecorderModal({
       setErrorMessage(null);
       setSuccessMessage(null);
       setIsSubmitting(false);
+      setPendingSavedMemory(null);
+      setAudioUploadError(null);
 
       const now = new Date();
       const dateStr = now.toLocaleDateString(undefined, {
@@ -104,6 +109,8 @@ export default function VoiceRecorderModal({
       }
       setAudioUrl(null);
       setAudioBlob(null);
+      setPendingSavedMemory(null);
+      setAudioUploadError(null);
       setRecordingState('idle');
     }
     prevIsOpenRef.current = isOpen;
@@ -287,8 +294,8 @@ export default function VoiceRecorderModal({
     }
   };
 
-  const handleSaveMemory = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveMemory = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (isSubmitting) return;
 
     if (!title.trim() || !content.trim()) {
@@ -299,21 +306,47 @@ export default function VoiceRecorderModal({
     setIsSubmitting(true);
     setRecordingState('saving');
     setErrorMessage(null);
+    setAudioUploadError(null);
+
+    let memoryToUse = pendingSavedMemory;
 
     try {
-      const savedMemory = await createMemoryApi({
-        title: title.trim(),
-        content: content.trim(),
-        category: category.trim() || undefined,
-        tags: tags.trim() || undefined,
-      });
-
-      setRecordingState('saved');
-      setSuccessMessage('Voice memory successfully saved to your vault!');
-
-      if (onMemoryCreated) {
-        onMemoryCreated(savedMemory);
+      // Step 1: Create Memory record if not already created in a previous partial attempt
+      if (!memoryToUse) {
+        memoryToUse = await createMemoryApi({
+          title: title.trim(),
+          content: content.trim(),
+          category: category.trim() || undefined,
+          tags: tags.trim() || undefined,
+        });
+        setPendingSavedMemory(memoryToUse);
+        if (onMemoryCreated) {
+          onMemoryCreated(memoryToUse);
+        }
       }
+
+      // Step 2: Upload the recorded audio Blob if present
+      if (audioBlob) {
+        const baseType = audioBlob.type?.split(';')[0]?.toLowerCase() || 'audio/webm';
+        let ext = 'webm';
+        if (baseType.includes('mp4') || baseType.includes('m4a')) ext = 'm4a';
+        else if (baseType.includes('wav')) ext = 'wav';
+        else if (baseType.includes('ogg')) ext = 'ogg';
+        else if (baseType.includes('mpeg') || baseType.includes('mp3')) ext = 'mp3';
+
+        const audioFile = new File([audioBlob], `voice_recording_${Date.now()}.${ext}`, {
+          type: baseType,
+        });
+
+        await uploadMemoryMediaApi(memoryToUse.id, [audioFile]);
+      }
+
+      // Step 3: Success!
+      setRecordingState('saved');
+      setPendingSavedMemory(null);
+      setAudioUploadError(null);
+      setSuccessMessage('Voice memory and audio recording saved to your vault!');
+
       if (onTranscriptReady) {
         onTranscriptReady(content.trim());
       }
@@ -323,8 +356,16 @@ export default function VoiceRecorderModal({
         onClose();
       }, 1500);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save memory.';
-      setErrorMessage(msg);
+      const msg = err instanceof Error ? err.message : 'Operation failed.';
+      if (memoryToUse) {
+        // Memory exists, but audio upload failed: preserve created memory for retry
+        setAudioUploadError(msg);
+        setErrorMessage(
+          `Memory "${memoryToUse.title}" was saved, but attaching the voice recording failed: ${msg}. You can retry attaching the audio below, or click Done to finish with text only.`
+        );
+      } else {
+        setErrorMessage(`Failed to save memory: ${msg}`);
+      }
       setRecordingState('transcribed');
     } finally {
       setIsSubmitting(false);
@@ -342,14 +383,20 @@ export default function VoiceRecorderModal({
 
   return (
     <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isSubmitting && recordingState !== 'recording') {
+          onClose();
+        }
+      }}
       style={{
         position: 'fixed',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.6)',
-        backdropFilter: 'blur(2px)',
+        backgroundColor: 'rgba(62, 39, 35, 0.48)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -359,14 +406,15 @@ export default function VoiceRecorderModal({
     >
       <div
         style={{
-          backgroundColor: '#ffffff',
-          borderRadius: '16px',
+          backgroundColor: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
           width: '100%',
           maxWidth: '580px',
           maxHeight: '90vh',
           overflowY: 'auto',
           padding: '2rem',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          boxShadow: 'var(--shadow-soft)',
           display: 'flex',
           flexDirection: 'column',
           gap: '1.25rem',
@@ -374,28 +422,44 @@ export default function VoiceRecorderModal({
       >
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span style={{ fontSize: '1.5rem' }}>🎙️</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, rgba(182, 90, 70, 0.15), rgba(74, 142, 139, 0.15))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.35rem',
+              }}
+            >
+              🎙️
+            </div>
             <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+              <span className="eyebrow" style={{ fontSize: '0.68rem', padding: '0.2rem 0.6rem' }}>Voice Reflection</span>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text)', margin: '0.15rem 0 0 0', letterSpacing: '-0.02em' }}>
                 Record Voice Memory
               </h2>
-              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0.15rem 0 0 0' }}>
-                Capture audio reflections and automatically transcribe into your vault
-              </p>
             </div>
           </div>
           <button
             type="button"
             disabled={isSubmitting || recordingState === 'recording'}
             onClick={onClose}
+            aria-label="Close voice recorder"
             style={{
               background: 'none',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontSize: '1.25rem',
               cursor: isSubmitting || recordingState === 'recording' ? 'not-allowed' : 'pointer',
-              padding: '0.25rem',
+              padding: '0.35rem',
+              borderRadius: '50%',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               lineHeight: 1,
             }}
           >
@@ -407,11 +471,11 @@ export default function VoiceRecorderModal({
         {!isBrowserSupported && (
           <div
             style={{
-              backgroundColor: '#fee2e2',
-              border: '1px solid #fca5a5',
-              borderRadius: '10px',
+              backgroundColor: 'var(--danger-background)',
+              border: '1px solid var(--danger-border)',
+              borderRadius: 'var(--radius-sm)',
               padding: '0.85rem 1rem',
-              color: '#991b1b',
+              color: 'var(--danger)',
               fontSize: '0.85rem',
               display: 'flex',
               alignItems: 'center',
@@ -431,11 +495,11 @@ export default function VoiceRecorderModal({
         {errorMessage && (
           <div
             style={{
-              backgroundColor: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: '10px',
+              backgroundColor: 'var(--danger-background)',
+              border: '1px solid var(--danger-border)',
+              borderRadius: 'var(--radius-sm)',
               padding: '0.75rem 1rem',
-              color: '#b91c1c',
+              color: 'var(--danger)',
               fontSize: '0.85rem',
               display: 'flex',
               alignItems: 'flex-start',
@@ -443,14 +507,14 @@ export default function VoiceRecorderModal({
             }}
           >
             <span style={{ fontSize: '1.1rem' }}>⚠️</span>
-            <div style={{ flex: 1 }}>{errorMessage}</div>
+            <div style={{ flex: 1, fontWeight: 500 }}>{errorMessage}</div>
             <button
               type="button"
               onClick={() => setErrorMessage(null)}
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#b91c1c',
+                color: 'var(--danger)',
                 cursor: 'pointer',
                 fontWeight: 700,
               }}
@@ -464,11 +528,11 @@ export default function VoiceRecorderModal({
         {successMessage && (
           <div
             style={{
-              backgroundColor: '#f0fdf4',
-              border: '1px solid #bbf7d0',
-              borderRadius: '10px',
+              backgroundColor: 'var(--success-background)',
+              border: '1px solid var(--success-border)',
+              borderRadius: 'var(--radius-sm)',
               padding: '0.75rem 1rem',
-              color: '#15803d',
+              color: 'var(--accent-strong)',
               fontSize: '0.85rem',
               display: 'flex',
               alignItems: 'center',
@@ -484,10 +548,10 @@ export default function VoiceRecorderModal({
         {recordingState !== 'transcribed' && recordingState !== 'saving' && recordingState !== 'saved' && (
           <div
             style={{
-              backgroundColor: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '12px',
-              padding: '1.5rem',
+              backgroundColor: 'var(--surface-muted)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '1.75rem 1.5rem',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -502,16 +566,16 @@ export default function VoiceRecorderModal({
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <div
                     style={{
-                      width: '72px',
-                      height: '72px',
+                      width: '76px',
+                      height: '76px',
                       borderRadius: '50%',
-                      backgroundColor: '#ef4444',
+                      background: 'linear-gradient(135deg, var(--primary), #c56c58)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       color: '#ffffff',
                       fontSize: '2rem',
-                      boxShadow: '0 0 0 10px rgba(239, 68, 68, 0.2)',
+                      boxShadow: '0 0 0 10px rgba(182, 90, 70, 0.22)',
                     }}
                   >
                     🎙️
@@ -519,19 +583,19 @@ export default function VoiceRecorderModal({
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#ef4444', letterSpacing: '0.05em' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)', letterSpacing: '0.05em' }}>
                     {formatDuration(elapsedSeconds)} / {formatDuration(MAX_AUDIO_DURATION_SECONDS)}
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.2rem' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
                     Recording audio... (max {MAX_AUDIO_DURATION_SECONDS / 60} minutes)
                   </div>
                 </div>
 
-                <div style={{ width: '100%', maxWidth: '280px', backgroundColor: '#e2e8f0', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ width: '100%', maxWidth: '280px', backgroundColor: 'var(--border)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
                   <div
                     style={{
                       height: '100%',
-                      backgroundColor: '#ef4444',
+                      background: 'linear-gradient(90deg, var(--primary), var(--accent))',
                       width: `${Math.min(100, (elapsedSeconds / MAX_AUDIO_DURATION_SECONDS) * 100)}%`,
                       transition: 'width 0.5s ease',
                     }}
@@ -540,20 +604,13 @@ export default function VoiceRecorderModal({
 
                 <button
                   type="button"
+                  className="primary-button"
                   onClick={handleStopRecording}
                   style={{
-                    backgroundColor: '#ef4444',
-                    color: '#ffffff',
+                    background: 'linear-gradient(135deg, var(--danger), #b85447)',
+                    boxShadow: '0 8px 18px rgba(165, 72, 59, 0.25)',
                     border: 'none',
-                    padding: '0.65rem 1.5rem',
-                    borderRadius: '8px',
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 4px rgba(239, 68, 68, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
+                    padding: '0.7rem 1.6rem',
                   }}
                 >
                   <span>■</span>
@@ -567,19 +624,19 @@ export default function VoiceRecorderModal({
               <div style={{ padding: '1rem 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.8rem' }}>
                 <div
                   style={{
-                    width: '42px',
-                    height: '42px',
-                    border: '4px solid #e0f2fe',
-                    borderTop: '4px solid #0284c7',
+                    width: '44px',
+                    height: '44px',
+                    border: '4px solid rgba(182, 90, 70, 0.15)',
+                    borderTop: '4px solid var(--primary)',
                     borderRadius: '50%',
                     animation: 'spin 1s linear infinite',
                   }}
                 />
                 <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-                <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.95rem' }}>
+                <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: '0.98rem' }}>
                   Transcribing speech with MemoraAI AI...
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                   Processing audio stream through Whisper speech recognition. Please wait.
                 </div>
               </div>
@@ -588,7 +645,7 @@ export default function VoiceRecorderModal({
             {/* RECORDED PREVIEW STATE */}
             {recordingState === 'recorded' && audioUrl && (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#059669', fontWeight: 600, fontSize: '0.95rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-strong)', fontWeight: 700, fontSize: '0.95rem' }}>
                   <span>✓</span>
                   <span>Recording ready ({formatDuration(elapsedSeconds)})</span>
                 </div>
@@ -596,46 +653,26 @@ export default function VoiceRecorderModal({
                 <audio
                   controls
                   src={audioUrl}
-                  style={{ width: '100%', maxWidth: '420px', borderRadius: '8px' }}
+                  style={{ width: '100%', maxWidth: '420px', borderRadius: 'var(--radius-sm)' }}
                 />
 
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
                   <button
                     type="button"
+                    className="secondary-button"
                     disabled={isSubmitting}
                     onClick={handleStartRecording}
-                    style={{
-                      backgroundColor: '#ffffff',
-                      color: '#475569',
-                      border: '1px solid #cbd5e1',
-                      padding: '0.6rem 1.1rem',
-                      borderRadius: '8px',
-                      fontWeight: 600,
-                      fontSize: '0.875rem',
-                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                    }}
+                    style={{ padding: '0.65rem 1.25rem' }}
                   >
                     🔄 Re-record
                   </button>
 
                   <button
                     type="button"
+                    className="primary-button"
                     disabled={isSubmitting}
                     onClick={handleTranscribe}
-                    style={{
-                      backgroundColor: '#0284c7',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '0.6rem 1.4rem',
-                      borderRadius: '8px',
-                      fontWeight: 600,
-                      fontSize: '0.875rem',
-                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                    }}
+                    style={{ padding: '0.65rem 1.5rem' }}
                   >
                     <span>✨</span>
                     <span>Transcribe Audio</span>
@@ -650,18 +687,21 @@ export default function VoiceRecorderModal({
                 <div
                   onClick={isBrowserSupported ? handleStartRecording : undefined}
                   style={{
-                    width: '80px',
-                    height: '80px',
+                    width: '84px',
+                    height: '84px',
                     borderRadius: '50%',
-                    backgroundColor: isBrowserSupported ? '#e0f2fe' : '#f1f5f9',
-                    color: isBrowserSupported ? '#0284c7' : '#94a3b8',
+                    background: isBrowserSupported
+                      ? 'linear-gradient(135deg, rgba(182, 90, 70, 0.14), rgba(74, 142, 139, 0.14))'
+                      : 'var(--border)',
+                    color: isBrowserSupported ? 'var(--primary)' : 'var(--disabled)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '2.2rem',
+                    fontSize: '2.4rem',
                     cursor: isBrowserSupported ? 'pointer' : 'not-allowed',
                     transition: 'all 0.2s ease',
-                    boxShadow: isBrowserSupported ? '0 4px 6px -1px rgba(2, 132, 199, 0.15)' : 'none',
+                    boxShadow: isBrowserSupported ? '0 8px 20px rgba(182, 90, 70, 0.18)' : 'none',
+                    border: '1px solid var(--border)',
                   }}
                   title={isBrowserSupported ? 'Click to start recording' : 'Recording unsupported'}
                 >
@@ -669,10 +709,10 @@ export default function VoiceRecorderModal({
                 </div>
 
                 <div>
-                  <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: '1.05rem', letterSpacing: '-0.02em' }}>
                     {isBrowserSupported ? 'Click to Start Voice Recording' : 'Recording Unavailable'}
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b', maxWidth: '380px', marginTop: '0.25rem' }}>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '380px', marginTop: '0.35rem' }}>
                     Speak into your microphone. When finished, MemoraAI will transcribe your reflection into text.
                     Limit: 5 minutes ({MAX_AUDIO_SIZE_BYTES / (1024 * 1024)} MB).
                   </div>
@@ -681,21 +721,9 @@ export default function VoiceRecorderModal({
                 {isBrowserSupported && (
                   <button
                     type="button"
+                    className="primary-button"
                     onClick={handleStartRecording}
-                    style={{
-                      backgroundColor: '#0284c7',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '0.65rem 1.5rem',
-                      borderRadius: '8px',
-                      fontWeight: 600,
-                      fontSize: '0.9rem',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                    }}
+                    style={{ padding: '0.75rem 1.6rem' }}
                   >
                     <span>🎙️</span>
                     <span>Start Recording</span>
@@ -713,21 +741,21 @@ export default function VoiceRecorderModal({
             {audioUrl && (
               <div
                 style={{
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '10px',
-                  padding: '0.75rem',
+                  backgroundColor: 'var(--surface-muted)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '0.75rem 1rem',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '0.75rem',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#64748b' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                   <span>🎧</span>
                   <span>Audio Reference:</span>
                 </div>
-                <audio controls src={audioUrl} style={{ height: '32px', flex: 1, maxWidth: '340px' }} />
+                <audio controls src={audioUrl} style={{ height: '34px', flex: 1, maxWidth: '340px' }} />
               </div>
             )}
 
@@ -736,45 +764,45 @@ export default function VoiceRecorderModal({
               transcriptResponse.isSimulated ? (
                 <div
                   style={{
-                    backgroundColor: '#fffbeb',
-                    border: '1px solid #fde68a',
-                    borderRadius: '8px',
+                    backgroundColor: 'var(--warning-background)',
+                    border: '1px solid var(--warning-border)',
+                    borderRadius: 'var(--radius-sm)',
                     padding: '0.75rem 1rem',
-                    color: '#92400e',
+                    color: 'var(--warning)',
                     fontSize: '0.825rem',
                     display: 'flex',
                     alignItems: 'flex-start',
-                    gap: '0.6rem',
+                    gap: '0.65rem',
                   }}
                 >
                   <span style={{ fontSize: '1.15rem' }}>⚠️</span>
                   <div>
                     <div style={{ fontWeight: 700 }}>Simulated Speech Transcription (Mock Provider)</div>
-                    <div style={{ marginTop: '0.2rem', color: '#78350f' }}>
+                    <div style={{ marginTop: '0.2rem', color: 'var(--text)' }}>
                       This transcript was generated by the development mock provider, not genuine speech
                       recognition. To enable genuine speech transcription, set{' '}
-                      <code>STT_PROVIDER=whisper-local</code> in your backend environment.
+                      <code style={{ background: 'rgba(255, 255, 255, 0.6)', padding: '0.1rem 0.3rem', borderRadius: '4px' }}>STT_PROVIDER=whisper-local</code> in your backend environment.
                     </div>
                   </div>
                 </div>
               ) : (
                 <div
                   style={{
-                    backgroundColor: '#f0fdf4',
-                    border: '1px solid #bbf7d0',
-                    borderRadius: '8px',
+                    backgroundColor: 'var(--success-background)',
+                    border: '1px solid var(--success-border)',
+                    borderRadius: 'var(--radius-sm)',
                     padding: '0.75rem 1rem',
-                    color: '#166534',
+                    color: 'var(--accent-strong)',
                     fontSize: '0.825rem',
                     display: 'flex',
                     alignItems: 'flex-start',
-                    gap: '0.6rem',
+                    gap: '0.65rem',
                   }}
                 >
                   <span style={{ fontSize: '1.15rem' }}>✓</span>
                   <div>
                     <div style={{ fontWeight: 700 }}>Genuine Speech Recognition</div>
-                    <div style={{ marginTop: '0.2rem', color: '#14532d' }}>
+                    <div style={{ marginTop: '0.2rem', color: 'var(--text)' }}>
                       Transcribed with <strong>{transcriptResponse.provider}</strong> (Language:{' '}
                       {transcriptResponse.detectedLanguage.toUpperCase()}, Duration:{' '}
                       {transcriptResponse.durationSeconds.toFixed(1)}s).
@@ -787,16 +815,15 @@ export default function VoiceRecorderModal({
             {/* Notice about storage limitations */}
             <div
               style={{
-                backgroundColor: '#f1f5f9',
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                padding: '0.55rem 0.85rem',
-                fontSize: '0.75rem',
-                color: '#475569',
+                backgroundColor: 'var(--surface-muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.6rem 0.9rem',
+                fontSize: '0.78rem',
+                color: 'var(--text-muted)',
               }}
             >
-              ℹ️ <strong>Storage Note:</strong> Audio is converted to text memory content. The raw audio file is
-              processed in-memory and not stored permanently in the media attachment vault.
+              ℹ️ <strong>Storage Note:</strong> Audio is converted to text memory content and attached to your memory.
             </div>
 
             {/* Editable Title */}
@@ -804,10 +831,12 @@ export default function VoiceRecorderModal({
               <label
                 style={{
                   display: 'block',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  color: '#334155',
-                  marginBottom: '0.35rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                  marginBottom: '0.4rem',
                 }}
               >
                 Memory Title *
@@ -822,11 +851,13 @@ export default function VoiceRecorderModal({
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  padding: '0.6rem 0.85rem',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  fontSize: '0.9rem',
+                  padding: '0.75rem 0.95rem',
+                  border: '1px solid var(--control-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.92rem',
                   outline: 'none',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--text)',
                 }}
               />
             </div>
@@ -838,13 +869,28 @@ export default function VoiceRecorderModal({
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginBottom: '0.35rem',
+                  marginBottom: '0.4rem',
                 }}
               >
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                <label
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-muted)',
+                  }}
+                >
                   Transcript Content * (Edit before saving)
                 </label>
-                <span style={{ fontSize: '0.75rem', color: '#0284c7', fontWeight: 600 }}>
+                <span
+                  className="chip"
+                  style={{
+                    fontSize: '0.72rem',
+                    padding: '0.2rem 0.55rem',
+                    border: '1px solid var(--border)',
+                  }}
+                >
                   ✏️ Freely editable
                 </span>
               </div>
@@ -858,14 +904,16 @@ export default function VoiceRecorderModal({
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  padding: '0.65rem 0.85rem',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  fontSize: '0.9rem',
+                  padding: '0.75rem 0.95rem',
+                  border: '1px solid var(--control-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.92rem',
                   outline: 'none',
                   resize: 'vertical',
                   fontFamily: 'inherit',
-                  lineHeight: '1.4',
+                  lineHeight: '1.5',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--text)',
                 }}
               />
             </div>
@@ -877,9 +925,11 @@ export default function VoiceRecorderModal({
                   style={{
                     display: 'block',
                     fontSize: '0.8rem',
-                    fontWeight: 600,
-                    color: '#334155',
-                    marginBottom: '0.25rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-muted)',
+                    marginBottom: '0.35rem',
                   }}
                 >
                   Category (optional)
@@ -893,10 +943,13 @@ export default function VoiceRecorderModal({
                   style={{
                     width: '100%',
                     boxSizing: 'border-box',
-                    padding: '0.55rem 0.75rem',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '8px',
-                    fontSize: '0.85rem',
+                    padding: '0.65rem 0.85rem',
+                    border: '1px solid var(--control-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.88rem',
+                    outline: 'none',
+                    backgroundColor: 'var(--surface)',
+                    color: 'var(--text)',
                   }}
                 />
               </div>
@@ -906,9 +959,11 @@ export default function VoiceRecorderModal({
                   style={{
                     display: 'block',
                     fontSize: '0.8rem',
-                    fontWeight: 600,
-                    color: '#334155',
-                    marginBottom: '0.25rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-muted)',
+                    marginBottom: '0.35rem',
                   }}
                 >
                   Tags (optional)
@@ -922,10 +977,13 @@ export default function VoiceRecorderModal({
                   style={{
                     width: '100%',
                     boxSizing: 'border-box',
-                    padding: '0.55rem 0.75rem',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '8px',
-                    fontSize: '0.85rem',
+                    padding: '0.65rem 0.85rem',
+                    border: '1px solid var(--control-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.88rem',
+                    outline: 'none',
+                    backgroundColor: 'var(--surface)',
+                    color: 'var(--text)',
                   }}
                 />
               </div>
@@ -937,77 +995,102 @@ export default function VoiceRecorderModal({
                 display: 'flex',
                 justifyContent: 'flex-end',
                 gap: '0.75rem',
-                marginTop: '0.5rem',
+                marginTop: '0.75rem',
                 flexWrap: 'wrap',
               }}
             >
-              {onTranscriptReady && (
+              {onTranscriptReady && !pendingSavedMemory && (
                 <button
                   type="button"
+                  className="ghost-button"
                   disabled={isSubmitting || recordingState === 'saved'}
                   onClick={handleUseTranscriptInForm}
                   style={{
-                    backgroundColor: '#ffffff',
-                    color: '#0284c7',
-                    border: '1px solid #0284c7',
-                    padding: '0.6rem 1.1rem',
-                    borderRadius: '8px',
-                    fontWeight: 600,
+                    padding: '0.65rem 1.25rem',
                     fontSize: '0.875rem',
-                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   }}
                 >
                   Insert into Form Content
                 </button>
               )}
 
-              <button
-                type="button"
-                disabled={isSubmitting || recordingState === 'saved'}
-                onClick={onClose}
-                style={{
-                  backgroundColor: '#ffffff',
-                  color: '#475569',
-                  border: '1px solid #cbd5e1',
-                  padding: '0.6rem 1.1rem',
-                  borderRadius: '8px',
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                }}
-              >
-                Cancel
-              </button>
+              {pendingSavedMemory ? (
+                <>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setPendingSavedMemory(null);
+                      onClose();
+                    }}
+                    style={{
+                      padding: '0.65rem 1.25rem',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    Done (Keep Text Only)
+                  </button>
 
-              <button
-                type="submit"
-                disabled={isSubmitting || recordingState === 'saved'}
-                style={{
-                  backgroundColor: isSubmitting || recordingState === 'saved' ? '#94a3b8' : '#0284c7',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '0.6rem 1.35rem',
-                  borderRadius: '8px',
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  cursor: isSubmitting || recordingState === 'saved' ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                }}
-              >
-                {isSubmitting ? (
-                  <span>Saving to Vault...</span>
-                ) : recordingState === 'saved' ? (
-                  <span>✓ Saved!</span>
-                ) : (
-                  <>
-                    <span>💾</span>
-                    <span>Save to Vault</span>
-                  </>
-                )}
-              </button>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    disabled={isSubmitting}
+                    onClick={() => handleSaveMemory()}
+                    style={{
+                      padding: '0.65rem 1.4rem',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    {isSubmitting ? (
+                      <span>Retrying Audio Upload...</span>
+                    ) : (
+                      <>
+                        <span>🔄</span>
+                        <span>Retry Audio Upload</span>
+                      </>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={isSubmitting || recordingState === 'saved'}
+                    onClick={onClose}
+                    style={{
+                      padding: '0.65rem 1.25rem',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="primary-button"
+                    disabled={isSubmitting || recordingState === 'saved'}
+                    style={{
+                      padding: '0.65rem 1.5rem',
+                      fontSize: '0.875rem',
+                      opacity: isSubmitting || recordingState === 'saved' ? 0.7 : 1,
+                      cursor: isSubmitting || recordingState === 'saved' ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {isSubmitting ? (
+                      <span>Saving to Vault...</span>
+                    ) : recordingState === 'saved' ? (
+                      <span>✓ Saved!</span>
+                    ) : (
+                      <>
+                        <span>💾</span>
+                        <span>Save to Vault</span>
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </form>
         )}

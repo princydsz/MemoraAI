@@ -517,7 +517,7 @@ public class MemoryIntegrationTest {
                 .thenReturn(new RagAnswerResponse(
                         "I can offer general guidance, but no personal memory matched.",
                         "gemini",
-                        "gemini-2.5-flash"
+                        "gemini-3.5-flash"
                 ));
 
         AskMemoryRequest request = new AskMemoryRequest("Where are my keys?");
@@ -531,7 +531,7 @@ public class MemoryIntegrationTest {
                 .andExpect(jsonPath("$.retrievedCount", is(0)))
                 .andExpect(jsonPath("$.sources", hasSize(0)))
                 .andExpect(jsonPath("$.provider", is("gemini")))
-                .andExpect(jsonPath("$.model", is("gemini-2.5-flash")));
+                .andExpect(jsonPath("$.model", is("gemini-3.5-flash")));
         verify(aiService).generateRagAnswer(
                 eq("Where are my keys?"),
                 argThat(List::isEmpty)
@@ -550,7 +550,7 @@ public class MemoryIntegrationTest {
                 .thenReturn(new RagAnswerResponse(
                         "No personal memory was retrieved for this question.",
                         "gemini",
-                        "gemini-2.5-flash"
+                        "gemini-3.5-flash"
                 ));
 
         AskMemoryRequest request = new AskMemoryRequest("Tokyo trip");

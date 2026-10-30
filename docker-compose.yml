@@ -52,7 +52,7 @@ services:
       start_period: 15s
 
   minio:
-    image: cgr.dev/chainguard/minio:latest
+    image: minio/minio:RELEASE.2024-01-18T22-51-28Z
     container_name: memora-minio
     restart: unless-stopped
     ports:
@@ -84,7 +84,7 @@ services:
       - DEMO_MODE=${DEMO_MODE:-true}
       - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash}
       - STT_PROVIDER=${STT_PROVIDER:-whisper-local}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-small}
       - WHISPER_DEVICE=${WHISPER_DEVICE:-cpu}
@@ -92,6 +92,13 @@ services:
       - WHISPER_BEAM_SIZE=${WHISPER_BEAM_SIZE:-5}
       - WHISPER_VAD_FILTER=${WHISPER_VAD_FILTER:-true}
       - WHISPER_CONDITION_ON_PREVIOUS_TEXT=${WHISPER_CONDITION_ON_PREVIOUS_TEXT:-false}
+      - WHISPER_MULTILINGUAL=${WHISPER_MULTILINGUAL:-true}
+      - WHISPER_INITIAL_PROMPT=${WHISPER_INITIAL_PROMPT:-English, हिन्दी, मराठी.}
+      - WHISPER_CODE_SWITCH_FALLBACK=${WHISPER_CODE_SWITCH_FALLBACK:-true}
+      - WHISPER_CODE_SWITCH_EN_MAX=${WHISPER_CODE_SWITCH_EN_MAX:-0.75}
+      - WHISPER_CODE_SWITCH_INDIC_MIN=${WHISPER_CODE_SWITCH_INDIC_MIN:-0.20}
+      - WHISPER_FALLBACK_BEAM_SIZE=${WHISPER_FALLBACK_BEAM_SIZE:-3}
+      - WHISPER_INDIC_LANGUAGES=${WHISPER_INDIC_LANGUAGES:-hi,mr,ur,pa,gu,bn,sa,ta,te,kn,ml}
     volumes:
       - ai_cache:/root/.cache
     depends_on:
