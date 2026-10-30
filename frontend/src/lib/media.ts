@@ -9,9 +9,37 @@ export function getAuthToken(): string | null {
 }
 
 export const MAX_MEDIA_PER_MEMORY = 5;
-export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MiB
+export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MiB (default/image limit)
+export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MiB
+export const MAX_AUDIO_SIZE_BYTES = 25 * 1024 * 1024; // 25 MiB
+
 export const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 export const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
+
+export const ALLOWED_AUDIO_MIME_TYPES = [
+  'audio/webm',
+  'audio/wav',
+  'audio/wave',
+  'audio/x-wav',
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/ogg',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/aac',
+];
+export const ALLOWED_AUDIO_EXTENSIONS = ['.wav', '.mp3', '.ogg', '.m4a', '.webm'];
+
+export const ALL_MEDIA_MIME_TYPES = [...ALLOWED_MIME_TYPES, ...ALLOWED_AUDIO_MIME_TYPES];
+export const ALL_MEDIA_EXTENSIONS = [...ALLOWED_EXTENSIONS, ...ALLOWED_AUDIO_EXTENSIONS];
+
+export function isAudioMedia(media: MemoryMedia | { contentType?: string }): boolean {
+  return !!media.contentType?.toLowerCase().startsWith('audio/');
+}
+
+export function isImageMedia(media: MemoryMedia | { contentType?: string }): boolean {
+  return !!media.contentType?.toLowerCase().startsWith('image/');
+}
 
 function getAuthHeaders(includeJson: boolean = true): HeadersInit {
   const token = getAuthToken();
@@ -26,7 +54,7 @@ function getAuthHeaders(includeJson: boolean = true): HeadersInit {
 }
 
 /**
- * Validates candidate image files against system limits before uploading.
+ * Validates candidate media files (images and voice audio) against system limits before uploading.
  */
 export function validateMediaFiles(files: File[], currentCount: number): MediaValidationResult {
   if (!files || files.length === 0) {
@@ -41,21 +69,36 @@ export function validateMediaFiles(files: File[], currentCount: number): MediaVa
   }
 
   for (const file of files) {
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      return {
-        valid: false,
-        error: `File "${file.name}" exceeds the maximum size limit of 10 MB.`,
-      };
+    const lowerName = file.name.toLowerCase();
+    const isAudio =
+      file.type.toLowerCase().startsWith('audio/') ||
+      ALLOWED_AUDIO_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+
+    if (isAudio) {
+      if (file.size > MAX_AUDIO_SIZE_BYTES) {
+        return {
+          valid: false,
+          error: `File "${file.name}" exceeds the maximum audio size limit of 25 MB.`,
+        };
+      }
+    } else {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        return {
+          valid: false,
+          error: `File "${file.name}" exceeds the maximum size limit of 10 MB.`,
+        };
+      }
     }
 
-    const lowerName = file.name.toLowerCase();
-    const hasValidExt = ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
-    const hasValidMime = ALLOWED_MIME_TYPES.includes(file.type.toLowerCase());
+    const hasValidExt = ALL_MEDIA_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+    const hasValidMime =
+      ALL_MEDIA_MIME_TYPES.includes(file.type.toLowerCase()) ||
+      ALLOWED_AUDIO_MIME_TYPES.some((m) => file.type.toLowerCase().startsWith(m));
 
     if (!hasValidExt && !hasValidMime) {
       return {
         valid: false,
-        error: `File "${file.name}" has an unsupported format. Only JPEG, PNG, and WEBP images are supported.`,
+        error: `File "${file.name}" has an unsupported format. Only JPEG, PNG, and WEBP images and voice audio are supported.`,
       };
     }
   }

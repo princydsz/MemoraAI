@@ -5,12 +5,14 @@ import {
   deleteMemoryMediaApi,
   formatFileSize,
   getMemoryMediaApi,
+  isAudioMedia,
   MAX_MEDIA_PER_MEMORY,
   uploadMemoryMediaApi,
   validateMediaFiles,
 } from '../../lib/media';
 import { MemoryMedia } from '../../types/media';
 import AuthenticatedImage from './AuthenticatedImage';
+import AuthenticatedAudioPlayer from './AuthenticatedAudioPlayer';
 
 interface MediaGalleryProps {
   memoryId: string;
@@ -174,7 +176,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
   const isLimitReached = mediaList.length >= MAX_MEDIA_PER_MEMORY;
 
   return (
-    <div style={{ marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
+    <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem' }}>
       {/* Header with Attachment Counter */}
       <div
         style={{
@@ -185,15 +187,15 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
-            Attached Images
+          <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text)' }}>
+            Attached Media
           </span>
           <span
             style={{
               fontSize: '0.75rem',
               fontWeight: 700,
-              backgroundColor: isLimitReached ? '#fee2e2' : '#e0f2fe',
-              color: isLimitReached ? '#b91c1c' : '#0369a1',
+              backgroundColor: isLimitReached ? 'var(--color-error-background)' : 'var(--color-accent-soft)',
+              color: isLimitReached ? 'var(--color-error)' : 'var(--primary-hover)',
               padding: '0.15rem 0.55rem',
               borderRadius: '9999px',
             }}
@@ -203,8 +205,8 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
         </div>
 
         {isLimitReached && (
-          <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>
-            Maximum image limit reached
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-secondary-text)', fontWeight: 500 }}>
+            Maximum attachment limit reached
           </span>
         )}
       </div>
@@ -213,9 +215,9 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
       {error && (
         <div
           style={{
-            backgroundColor: '#fef2f2',
-            border: '1px solid #fecaca',
-            color: '#b91c1c',
+            backgroundColor: 'var(--color-error-background)',
+            border: '1px solid var(--color-error-border)',
+            color: 'var(--color-error)',
             padding: '0.65rem 0.9rem',
             borderRadius: '8px',
             fontSize: '0.85rem',
@@ -231,7 +233,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
             style={{
               background: 'none',
               border: 'none',
-              color: '#b91c1c',
+              color: 'var(--color-error)',
               cursor: 'pointer',
               fontWeight: 'bold',
             }}
@@ -244,9 +246,9 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
       {successMsg && (
         <div
           style={{
-            backgroundColor: '#f0fdf4',
-            border: '1px solid #bbf7d0',
-            color: '#15803d',
+            backgroundColor: 'var(--color-success-background)',
+            border: '1px solid var(--color-success-border)',
+            color: 'var(--color-success)',
             padding: '0.65rem 0.9rem',
             borderRadius: '8px',
             fontSize: '0.85rem',
@@ -262,7 +264,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
             style={{
               background: 'none',
               border: 'none',
-              color: '#15803d',
+              color: 'var(--color-success)',
               cursor: 'pointer',
               fontWeight: 'bold',
             }}
@@ -278,11 +280,11 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
           style={{
             padding: '2rem',
             textAlign: 'center',
-            color: '#64748b',
+            color: 'var(--color-secondary-text)',
             fontSize: '0.9rem',
-            backgroundColor: '#f8fafc',
+            backgroundColor: 'var(--color-background)',
             borderRadius: '10px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--color-border)',
           }}
         >
           Loading attachments...
@@ -295,105 +297,177 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
               style={{
                 padding: '1.5rem',
                 textAlign: 'center',
-                color: '#64748b',
-                backgroundColor: '#f8fafc',
+                color: 'var(--color-secondary-text)',
+                backgroundColor: 'var(--color-background)',
                 borderRadius: '10px',
-                border: '1px dashed #cbd5e1',
+                border: '1px dashed var(--color-border)',
                 fontSize: '0.85rem',
                 marginBottom: '1rem',
               }}
             >
-              No images attached to this memory yet. Upload JPEG, PNG, or WEBP photos below.
+              No media attached to this memory yet. Upload photos or voice recordings below.
             </div>
           ) : (
-            /* Media Grid */
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
-                gap: '0.75rem',
-                marginBottom: '1.25rem',
-              }}
-            >
-              {mediaList.map((media) => (
-                <div
-                  key={media.id}
-                  style={{
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '10px',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                    position: 'relative',
-                  }}
-                >
-                  {/* Thumbnail */}
-                  <div
-                    style={{
-                      height: '110px',
-                      width: '100%',
-                      backgroundColor: '#f1f5f9',
-                      position: 'relative',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <AuthenticatedImage
-                      memoryId={memoryId}
-                      mediaId={media.id}
-                      alt={media.fileName}
-                      onClick={() => setActivePreviewMedia(media)}
-                    />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.25rem' }}>
+              {/* Audio Recordings Section */}
+              {mediaList.some((m) => m.contentType?.toLowerCase().startsWith('audio/')) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span>🎙️ Voice Recordings</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--color-secondary-text)', fontWeight: 500 }}>
+                      ({mediaList.filter((m) => m.contentType?.toLowerCase().startsWith('audio/')).length})
+                    </span>
                   </div>
-
-                  {/* Metadata & Actions */}
-                  <div style={{ padding: '0.5rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div
-                      title={media.fileName}
-                      style={{
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        color: '#0f172a',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {media.fileName}
-                    </div>
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginTop: '0.35rem',
-                      }}
-                    >
-                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                        {formatFileSize(media.fileSize)}
-                      </span>
-                      <button
-                        onClick={() => setDeletingMedia(media)}
-                        title="Delete image"
-                        style={{
-                          backgroundColor: '#fee2e2',
-                          color: '#ef4444',
-                          border: 'none',
-                          borderRadius: '4px',
-                          padding: '0.2rem 0.45rem',
-                          fontSize: '0.7rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    {mediaList
+                      .filter((m) => m.contentType?.toLowerCase().startsWith('audio/'))
+                      .map((audioMedia) => (
+                        <div
+                          key={audioMedia.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            backgroundColor: 'var(--surface-muted)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '0.6rem 0.85rem',
+                            boxShadow: 'var(--shadow-card)',
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <AuthenticatedAudioPlayer
+                              memoryId={memoryId}
+                              mediaId={audioMedia.id}
+                              fileName={audioMedia.fileName}
+                              fileSize={audioMedia.fileSize}
+                              style={{ boxShadow: 'none', border: 'none', padding: 0, backgroundColor: 'transparent' }}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingMedia(audioMedia)}
+                            title="Delete voice recording"
+                            style={{
+                              backgroundColor: 'var(--danger-background)',
+                              color: 'var(--danger)',
+                              border: '1px solid var(--danger-border)',
+                              borderRadius: '999px',
+                              padding: '0.35rem 0.75rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              flexShrink: 0,
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))}
                   </div>
                 </div>
-              ))}
+              )}
+
+              {/* Photos & Images Section */}
+              {mediaList.some((m) => !m.contentType?.toLowerCase().startsWith('audio/')) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span>📷 Photos & Images</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--color-secondary-text)', fontWeight: 500 }}>
+                      ({mediaList.filter((m) => !m.contentType?.toLowerCase().startsWith('audio/')).length})
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    {mediaList
+                      .filter((m) => !m.contentType?.toLowerCase().startsWith('audio/'))
+                      .map((media) => (
+                        <div
+                          key={media.id}
+                          style={{
+                            backgroundColor: 'var(--color-surface)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-sm)',
+                            overflow: 'hidden',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            boxShadow: 'var(--shadow-card)',
+                            position: 'relative',
+                          }}
+                        >
+                          {/* Thumbnail */}
+                          <div
+                            style={{
+                              height: '110px',
+                              width: '100%',
+                              backgroundColor: 'var(--color-background)',
+                              position: 'relative',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <AuthenticatedImage
+                              memoryId={memoryId}
+                              mediaId={media.id}
+                              alt={media.fileName}
+                              onClick={() => setActivePreviewMedia(media)}
+                            />
+                          </div>
+
+                          {/* Metadata & Actions */}
+                          <div style={{ padding: '0.5rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                            <div
+                              title={media.fileName}
+                              style={{
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: 'var(--color-text)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {media.fileName}
+                            </div>
+
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginTop: '0.35rem',
+                              }}
+                            >
+                              <span style={{ fontSize: '0.7rem', color: 'var(--color-secondary-text)' }}>
+                                {formatFileSize(media.fileSize)}
+                              </span>
+                              <button
+                                onClick={() => setDeletingMedia(media)}
+                                title="Delete image"
+                                style={{
+                                  backgroundColor: 'var(--danger-background)',
+                                  color: 'var(--danger)',
+                                  border: '1px solid var(--danger-border)',
+                                  borderRadius: '999px',
+                                  padding: '0.2rem 0.55rem',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -405,9 +479,9 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
               onDrop={handleDrop}
               onClick={() => !isUploading && fileInputRef.current?.click()}
               style={{
-                border: isDragging ? '2px dashed #0284c7' : '2px dashed #cbd5e1',
-                backgroundColor: isDragging ? '#f0f9ff' : '#f8fafc',
-                borderRadius: '12px',
+                border: isDragging ? '2px dashed var(--primary)' : '2px dashed var(--border)',
+                backgroundColor: isDragging ? 'rgba(var(--accent-rgb), 0.12)' : 'var(--surface-muted)',
+                borderRadius: 'var(--radius-md)',
                 padding: '1.25rem',
                 textAlign: 'center',
                 cursor: isUploading ? 'not-allowed' : 'pointer',
@@ -418,19 +492,19 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                accept="image/jpeg,image/png,image/webp,audio/webm,audio/wav,audio/mp4,audio/mpeg,audio/ogg,.jpg,.jpeg,.png,.webp,.webm,.wav,.mp4,.m4a,.mp3,.ogg"
                 disabled={isUploading}
                 onChange={(e) => handleFilesSelected(e.target.files)}
                 style={{ display: 'none' }}
               />
 
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.35rem' }}>
-                <span style={{ fontSize: '1.4rem' }}>📷</span>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0f172a' }}>
-                  {isUploading ? 'Uploading image(s)...' : 'Click or drag images to upload'}
+                <span style={{ fontSize: '1.4rem' }}>📷 🎙️</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text)' }}>
+                  {isUploading ? 'Uploading attachment(s)...' : 'Click or drag photos or voice recordings to upload'}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                  JPEG, PNG, or WEBP up to 10 MB each ({MAX_MEDIA_PER_MEMORY - mediaList.length} slot
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-secondary-text)' }}>
+                  Photos up to 10 MB, audio up to 25 MB ({MAX_MEDIA_PER_MEMORY - mediaList.length} slot
                   {MAX_MEDIA_PER_MEMORY - mediaList.length > 1 ? 's' : ''} remaining)
                 </span>
               </div>
@@ -449,7 +523,8 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            backgroundColor: 'rgba(62, 39, 35, 0.65)',
+            backdropFilter: 'blur(8px)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -465,10 +540,11 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
               maxHeight: '85vh',
               display: 'flex',
               flexDirection: 'column',
-              backgroundColor: '#ffffff',
-              borderRadius: '14px',
+              backgroundColor: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border)',
               overflow: 'hidden',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              boxShadow: 'var(--shadow-soft)',
             }}
           >
             {/* Lightbox Header */}
@@ -478,14 +554,14 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 padding: '0.75rem 1.25rem',
-                borderBottom: '1px solid #e2e8f0',
+                borderBottom: '1px solid var(--border)',
               }}
             >
               <div>
-                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-text)' }}>
                   {activePreviewMedia.fileName}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-secondary-text)', marginLeft: '0.5rem' }}>
                   ({formatFileSize(activePreviewMedia.fileSize)})
                 </span>
               </div>
@@ -496,7 +572,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                   border: 'none',
                   fontSize: '1.2rem',
                   cursor: 'pointer',
-                  color: '#64748b',
+                  color: 'var(--color-secondary-text)',
                   lineHeight: 1,
                 }}
               >
@@ -504,29 +580,40 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
               </button>
             </div>
 
-            {/* Lightbox Image Viewport */}
+            {/* Lightbox Viewport */}
             <div
               style={{
-                padding: '0.75rem',
-                backgroundColor: '#0f172a',
+                padding: activePreviewMedia.contentType?.toLowerCase().startsWith('audio/') ? '1.5rem' : '0.75rem',
+                backgroundColor: activePreviewMedia.contentType?.toLowerCase().startsWith('audio/') ? 'var(--color-surface)' : 'var(--color-text)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 maxHeight: '75vh',
+                minWidth: activePreviewMedia.contentType?.toLowerCase().startsWith('audio/') ? '340px' : 'auto',
                 overflow: 'hidden',
               }}
             >
-              <AuthenticatedImage
-                memoryId={memoryId}
-                mediaId={activePreviewMedia.id}
-                alt={activePreviewMedia.fileName}
-                style={{
-                  maxHeight: '70vh',
-                  maxWidth: '85vw',
-                  objectFit: 'contain',
-                  borderRadius: '4px',
-                }}
-              />
+              {activePreviewMedia.contentType?.toLowerCase().startsWith('audio/') ? (
+                <AuthenticatedAudioPlayer
+                  memoryId={memoryId}
+                  mediaId={activePreviewMedia.id}
+                  fileName={activePreviewMedia.fileName}
+                  fileSize={activePreviewMedia.fileSize}
+                  autoPlay={true}
+                />
+              ) : (
+                <AuthenticatedImage
+                  memoryId={memoryId}
+                  mediaId={activePreviewMedia.id}
+                  alt={activePreviewMedia.fileName}
+                  style={{
+                    maxHeight: '70vh',
+                    maxWidth: '85vw',
+                    objectFit: 'contain',
+                    borderRadius: '4px',
+                  }}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -542,7 +629,8 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
+            backgroundColor: 'rgba(62, 39, 35, 0.48)',
+            backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -553,53 +641,47 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '14px',
+              backgroundColor: 'var(--surface)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)',
               maxWidth: '420px',
               width: '100%',
-              padding: '1.5rem',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+              padding: '1.75rem',
+              boxShadow: 'var(--shadow-soft)',
             }}
           >
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.5rem 0' }}>
-              Delete Image Attachment?
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text)', margin: '0 0 0.5rem 0' }}>
+              {isAudioMedia(deletingMedia) ? 'Delete Voice Recording?' : 'Delete Image Attachment?'}
             </h3>
-            <p style={{ fontSize: '0.85rem', color: '#475569', lineHeight: 1.5, margin: '0 0 1.25rem 0' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 1.25rem 0' }}>
               Are you sure you want to delete <strong>{deletingMedia.fileName}</strong>? This action cannot
-              be undone and will permanently remove the image from storage.
+              be undone and will permanently remove the {isAudioMedia(deletingMedia) ? 'voice recording' : 'image'} from storage.
             </p>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               <button
                 type="button"
+                className="secondary-button"
                 disabled={isDeleting}
                 onClick={() => setDeletingMedia(null)}
                 style={{
-                  backgroundColor: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  padding: '0.5rem 1rem',
+                  padding: '0.6rem 1.15rem',
                   fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: isDeleting ? 'not-allowed' : 'pointer',
                 }}
               >
                 Cancel
               </button>
               <button
                 type="button"
+                className="primary-button"
                 disabled={isDeleting}
                 onClick={handleDeleteConfirm}
                 style={{
-                  backgroundColor: '#ef4444',
-                  color: '#ffffff',
+                  background: 'linear-gradient(135deg, var(--danger), #b85447)',
                   border: 'none',
-                  borderRadius: '8px',
-                  padding: '0.5rem 1rem',
+                  padding: '0.6rem 1.25rem',
                   fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 8px 18px rgba(165, 72, 59, 0.25)',
                 }}
               >
                 {isDeleting ? 'Deleting...' : 'Confirm Delete'}

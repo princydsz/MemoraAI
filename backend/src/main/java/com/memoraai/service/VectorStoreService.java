@@ -1,6 +1,7 @@
 package com.memoraai.service;
 
 import com.memoraai.entity.Memory;
+import com.memoraai.exception.MemoryRetrievalException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +28,7 @@ public class VectorStoreService {
                               @Value("${qdrant.host:localhost}") String qdrantHost,
                               @Value("${qdrant.port:6333}") int qdrantPort,
                               @Value("${qdrant.collection:memories}") String collectionName,
-                              @Value("${qdrant.score-threshold:0.15}") double scoreThreshold) {
+                              @Value("${qdrant.score-threshold:0.20}") double scoreThreshold) {
         this.restTemplate = restTemplate;
         this.aiService = aiService;
         this.qdrantHost = qdrantHost;
@@ -85,7 +86,8 @@ public class VectorStoreService {
             restTemplate.exchange(url, HttpMethod.PUT, entity, Map.class);
             logger.info("Initialized Qdrant collection '{}'", collectionName);
         } catch (Exception e) {
-            logger.warn("Could not initialize Qdrant collection '{}': {}", collectionName, e.getMessage());
+            logger.error("Could not initialize Qdrant collection '{}'.", collectionName);
+            throw new MemoryRetrievalException("Memory index is unavailable.", e);
         }
     }
 
@@ -103,9 +105,8 @@ public class VectorStoreService {
                 memory.getTags() != null ? memory.getTags() : "");
 
         List<Double> vector = aiService.generateEmbedding(searchableText);
-        if (vector == null || vector.isEmpty()) {
-            logger.warn("Skipping Qdrant indexing for memory {} due to empty embedding", memory.getId());
-            return;
+        if (vector.size() != 384) {
+            throw new MemoryRetrievalException("Embedding service returned an invalid vector.");
         }
 
         try {
@@ -133,7 +134,8 @@ public class VectorStoreService {
             restTemplate.exchange(url, HttpMethod.PUT, entity, Map.class);
             logger.info("Indexed memory {} in Qdrant", memory.getId());
         } catch (Exception e) {
-            logger.warn("Failed to index memory {} in Qdrant: {}", memory.getId(), e.getMessage());
+            logger.error("Failed to index memory {} in Qdrant.", memory.getId());
+            throw new MemoryRetrievalException("Memory could not be indexed.", e);
         }
     }
 
@@ -155,7 +157,8 @@ public class VectorStoreService {
             restTemplate.postForEntity(url, entity, Map.class);
             logger.info("Deleted Qdrant vector point for memory {}", memoryId);
         } catch (Exception e) {
-            logger.warn("Failed to delete memory {} from Qdrant: {}", memoryId, e.getMessage());
+            logger.error("Failed to delete memory {} from Qdrant.", memoryId);
+            throw new MemoryRetrievalException("Memory index could not be updated.", e);
         }
     }
 
@@ -167,8 +170,8 @@ public class VectorStoreService {
         initCollectionIfNeeded();
 
         List<Double> queryVector = aiService.generateEmbedding(queryText.trim());
-        if (queryVector == null || queryVector.isEmpty()) {
-            return Collections.emptyList();
+        if (queryVector.size() != 384) {
+            throw new MemoryRetrievalException("Embedding service returned an invalid vector.");
         }
 
         try {
@@ -214,10 +217,12 @@ public class VectorStoreService {
                     return searchResults;
                 }
             }
+            throw new MemoryRetrievalException("Memory search returned an invalid response.");
+        } catch (MemoryRetrievalException ex) {
+            throw ex;
         } catch (Exception e) {
-            logger.warn("Qdrant semantic search failed for user {}: {}", userId, e.getMessage());
+            logger.error("Qdrant semantic search failed for user {}.", userId);
+            throw new MemoryRetrievalException("Memory search is temporarily unavailable.", e);
         }
-
-        return Collections.emptyList();
     }
 }

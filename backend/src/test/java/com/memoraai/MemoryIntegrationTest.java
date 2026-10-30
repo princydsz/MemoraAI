@@ -8,6 +8,8 @@ import com.memoraai.dto.AskMemoryResponse;
 import com.memoraai.dto.CreateMemoryRequest;
 import com.memoraai.dto.RagAnswerResponse;
 import com.memoraai.dto.UpdateMemoryRequest;
+import com.memoraai.exception.AiServiceException;
+import com.memoraai.exception.MemoryRetrievalException;
 
 import com.memoraai.entity.Memory;
 import com.memoraai.entity.Role;
@@ -39,7 +41,9 @@ import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -426,13 +430,13 @@ public class MemoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("21. Relevance Threshold Filtering: Only memories with neural score >= 0.35 are returned ('vacation with friends' query)")
+    @DisplayName("21. Relevance Threshold Filtering: Only memories with neural score >= 0.20 are returned ('vacation with friends' query)")
     void testRelevanceScoreThresholdFiltering() throws Exception {
         Memory memA1 = memoryRepository.save(new Memory(userA, "Goa Trip", "Went to Goa with my friends during the summer vacation. We visited beaches and explored local restaurants.", "Travel", "goa,friends,vacation"));
         Memory memA2 = memoryRepository.save(new Memory(userA, "Office Presentation", "Prepared and delivered a presentation for the college/company seminar.", "Work", "presentation,seminar"));
         Memory memA3 = memoryRepository.save(new Memory(userA, "Birthday Dinner", "Had a birthday dinner with my family at a restaurant.", "Family", "birthday,dinner"));
 
-        // Simulate VectorStoreService score threshold filtering (only memA1 has neural score >= 0.35)
+        // Simulate VectorStoreService score threshold filtering (only memA1 has neural score >= 0.20)
         when(vectorStoreService.search(eq(userA.getId()), eq("vacation with friends"), anyInt()))
                 .thenReturn(List.of(new VectorStoreService.VectorSearchResult(memA1.getId(), 0.4965)));
 
@@ -446,13 +450,13 @@ public class MemoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("22. Unrelated concept ('quantum physics') returns empty result set when all neural scores are below threshold 0.35")
+    @DisplayName("22. Unrelated concept ('quantum physics') returns empty result set when all neural scores are below threshold 0.20")
     void testQuantumPhysicsQueryReturnsEmptyResult() throws Exception {
         memoryRepository.save(new Memory(userA, "Goa Trip", "Went to Goa with my friends during the summer vacation.", "Travel", "goa"));
         memoryRepository.save(new Memory(userA, "Office Presentation", "Prepared and delivered a presentation for seminar.", "Work", "work"));
         memoryRepository.save(new Memory(userA, "Birthday Dinner", "Had a birthday dinner with family.", "Family", "birthday"));
 
-        // Vector store threshold filters out all 3 memories because neural scores (-0.0147, -0.0432, 0.0357) are all < 0.35
+        // Vector store threshold filters out all 3 memories because neural scores (-0.0147, -0.0432, 0.0357) are all < 0.20
         when(vectorStoreService.search(eq(userA.getId()), eq("quantum physics"), anyInt()))
                 .thenReturn(List.of());
 
@@ -482,9 +486,14 @@ public class MemoryIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.answer", containsString("Summer Vacation")))
                 .andExpect(jsonPath("$.retrievedCount", is(1)))
+                .andExpect(jsonPath("$.sources", hasSize(1)))
                 .andExpect(jsonPath("$.sources[0].id", is(mem.getId().toString())))
                 .andExpect(jsonPath("$.sources[0].title", is("Summer Vacation")))
                 .andExpect(jsonPath("$.sources[0].similarityScore", is(0.78)));
+        verify(aiService).generateRagAnswer(
+                eq("What did I do during vacation?"),
+                argThat(memories -> memories.size() == 1 && memories.get(0).getId().equals(mem.getId()))
+        );
     }
 
     @Test
@@ -500,10 +509,16 @@ public class MemoryIntegrationTest {
 
 
     @Test
-    @DisplayName("25. Phase 7 Ask MemoraAI: No matching memories returns fallback message without invoking LLM")
-    void testAskMemories_NoMatchingMemories_Fallback() throws Exception {
+    @DisplayName("25. Phase 7 Ask MemoraAI: No matching memories still allows a general AI answer")
+    void testAskMemories_NoMatchingMemories_AllowsGeneralAnswer() throws Exception {
         when(vectorStoreService.search(eq(userA.getId()), eq("Where are my keys?"), anyInt()))
                 .thenReturn(List.of());
+        when(aiService.generateRagAnswer(eq("Where are my keys?"), any()))
+                .thenReturn(new RagAnswerResponse(
+                        "I can offer general guidance, but no personal memory matched.",
+                        "gemini",
+                        "gemini-3.5-flash"
+                ));
 
         AskMemoryRequest request = new AskMemoryRequest("Where are my keys?");
 
@@ -512,9 +527,15 @@ public class MemoryIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.answer", is("I don't have any memory recorded about that.")))
+                .andExpect(jsonPath("$.answer", containsString("general guidance")))
                 .andExpect(jsonPath("$.retrievedCount", is(0)))
-                .andExpect(jsonPath("$.sources", hasSize(0)));
+                .andExpect(jsonPath("$.sources", hasSize(0)))
+                .andExpect(jsonPath("$.provider", is("gemini")))
+                .andExpect(jsonPath("$.model", is("gemini-3.5-flash")));
+        verify(aiService).generateRagAnswer(
+                eq("Where are my keys?"),
+                argThat(List::isEmpty)
+        );
     }
 
     @Test
@@ -525,6 +546,12 @@ public class MemoryIntegrationTest {
         // Simulate Qdrant incorrectly returning User B's memory ID for User A's search
         when(vectorStoreService.search(eq(userA.getId()), eq("Tokyo trip"), anyInt()))
                 .thenReturn(List.of(new VectorStoreService.VectorSearchResult(memB.getId(), 0.90)));
+        when(aiService.generateRagAnswer(eq("Tokyo trip"), any()))
+                .thenReturn(new RagAnswerResponse(
+                        "No personal memory was retrieved for this question.",
+                        "gemini",
+                        "gemini-3.5-flash"
+                ));
 
         AskMemoryRequest request = new AskMemoryRequest("Tokyo trip");
 
@@ -533,21 +560,21 @@ public class MemoryIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.answer", is("I don't have any memory recorded about that.")))
+                .andExpect(jsonPath("$.answer", is("No personal memory was retrieved for this question.")))
                 .andExpect(jsonPath("$.retrievedCount", is(0)))
                 .andExpect(jsonPath("$.sources", hasSize(0)));
     }
 
     @Test
-    @DisplayName("27. Phase 7 Ask MemoraAI: AI service failure clearly returns failure notice while preserving validated sources")
-    void testAskMemories_AiServiceFailure_PreservesSources() throws Exception {
+    @DisplayName("27. Phase 7 Ask MemoraAI: AI service failure returns a service-unavailable response")
+    void testAskMemories_AiServiceFailureIsExplicit() throws Exception {
         Memory mem = memoryRepository.save(new Memory(userA, "Summer Vacation", "Rented a sailboat and went island hopping.", "Travel", "vacation,sailing"));
 
         when(vectorStoreService.search(eq(userA.getId()), eq("What did I do during vacation?"), anyInt()))
                 .thenReturn(List.of(new VectorStoreService.VectorSearchResult(mem.getId(), 0.78)));
 
         when(aiService.generateRagAnswer(any(), any()))
-                .thenThrow(new RuntimeException("Gemini API request failed with status code 429: Quota exceeded"));
+                .thenThrow(new AiServiceException("Gemini rate limit or quota was reached."));
 
         AskMemoryRequest request = new AskMemoryRequest("What did I do during vacation?");
 
@@ -555,12 +582,22 @@ public class MemoryIntegrationTest {
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.answer", containsString("AI generation unavailable: Gemini API request failed with status code 429")))
-                .andExpect(jsonPath("$.retrievedCount", is(1)))
-                .andExpect(jsonPath("$.sources[0].id", is(mem.getId().toString())))
-                .andExpect(jsonPath("$.sources[0].title", is("Summer Vacation")))
-                .andExpect(jsonPath("$.sources[0].similarityScore", is(0.78)));
+                        .andExpect(status().isServiceUnavailable())
+                        .andExpect(jsonPath("$.message", is("Gemini rate limit or quota was reached.")));
+    }
+
+    @Test
+    @DisplayName("28. Phase 7 Ask MemoraAI: retrieval outage is not reported as an empty search")
+    void testAskMemories_RetrievalFailureIsExplicit() throws Exception {
+        when(vectorStoreService.search(eq(userA.getId()), eq("Where are my keys?"), anyInt()))
+                        .thenThrow(new MemoryRetrievalException("Memory search is temporarily unavailable."));
+
+        mockMvc.perform(post("/api/memories/ask")
+                                .header("Authorization", "Bearer " + tokenA)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(
+                                        new AskMemoryRequest("Where are my keys?"))))
+                        .andExpect(status().isServiceUnavailable())
+                        .andExpect(jsonPath("$.message", is("Memory search is temporarily unavailable.")));
     }
 }
-

@@ -82,9 +82,25 @@ services:
     environment:
       - QDRANT_HOST=qdrant
       - DEMO_MODE=${DEMO_MODE:-true}
-      - LLM_PROVIDER=${LLM_PROVIDER:-mock}
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash}
+      - STT_PROVIDER=${STT_PROVIDER:-whisper-local}
+      - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-small}
+      - WHISPER_DEVICE=${WHISPER_DEVICE:-cpu}
+      - WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-int8}
+      - WHISPER_BEAM_SIZE=${WHISPER_BEAM_SIZE:-5}
+      - WHISPER_VAD_FILTER=${WHISPER_VAD_FILTER:-true}
+      - WHISPER_CONDITION_ON_PREVIOUS_TEXT=${WHISPER_CONDITION_ON_PREVIOUS_TEXT:-false}
+      - WHISPER_MULTILINGUAL=${WHISPER_MULTILINGUAL:-true}
+      - WHISPER_INITIAL_PROMPT=${WHISPER_INITIAL_PROMPT:-English, हिन्दी, मराठी.}
+      - WHISPER_CODE_SWITCH_FALLBACK=${WHISPER_CODE_SWITCH_FALLBACK:-true}
+      - WHISPER_CODE_SWITCH_EN_MAX=${WHISPER_CODE_SWITCH_EN_MAX:-0.75}
+      - WHISPER_CODE_SWITCH_INDIC_MIN=${WHISPER_CODE_SWITCH_INDIC_MIN:-0.20}
+      - WHISPER_FALLBACK_BEAM_SIZE=${WHISPER_FALLBACK_BEAM_SIZE:-3}
+      - WHISPER_INDIC_LANGUAGES=${WHISPER_INDIC_LANGUAGES:-hi,mr,ur,pa,gu,bn,sa,ta,te,kn,ml}
+    volumes:
+      - ai_cache:/root/.cache
     depends_on:
       qdrant:
         condition: service_healthy
@@ -121,7 +137,7 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - QDRANT_COLLECTION=memories_v2
-      - QDRANT_SCORE_THRESHOLD=${QDRANT_SCORE_THRESHOLD:-0.35}
+      - QDRANT_SCORE_THRESHOLD=${QDRANT_SCORE_THRESHOLD:-0.20}
       - AI_SERVICE_HOST=ai-service
       - AI_SERVICE_URL=http://ai-service:8000
       - JWT_SECRET=${JWT_SECRET:-memora_super_secret_jwt_key_2026_dev_mode}
@@ -156,3 +172,4 @@ volumes:
   qdrant_data:
   neo4j_data:
   minio_data:
+  ai_cache:
