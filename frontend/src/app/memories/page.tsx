@@ -673,7 +673,7 @@ export default function MemoryVaultPage() {
             </div>
           )}
 
-          {error && (
+          {error && memories.length > 0 && (
             <div style={{
               backgroundColor: 'var(--color-error-background)',
               color: 'var(--color-error)',
@@ -690,6 +690,59 @@ export default function MemoryVaultPage() {
           {isLoading ? (
             <div className="memory-loading-state" aria-live="polite" style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-secondary-text)', fontWeight: 500 }}>
               Loading memories from your vault...
+            </div>
+          ) : error && memories.length === 0 ? (
+            <div
+              className="memory-error-state"
+              role="alert"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                padding: '3rem 2rem',
+                borderRadius: '16px',
+                border: '1px dashed var(--color-border)',
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '12px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  color: 'var(--color-error, #dc2626)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.5rem',
+                  fontWeight: 700,
+                  marginBottom: '1rem',
+                }}
+              >
+                ⚠️
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text)', margin: '0 0 0.5rem 0' }}>
+                Could not load your memories.
+              </h3>
+              <p style={{ fontSize: '0.9rem', color: 'var(--color-secondary-text)', maxWidth: '420px', margin: '0 auto 1.5rem auto' }}>
+                {error || 'We had trouble connecting to your vault. Please check your connection and try again.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => fetchMemories()}
+                style={{
+                  backgroundColor: 'var(--color-primary)',
+                  color: 'var(--color-surface)',
+                  border: 'none',
+                  padding: '0.65rem 1.25rem',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(var(--color-text-rgb), 0.05)',
+                }}
+              >
+                Try Again
+              </button>
             </div>
           ) : isSemanticSearchActive && searchResults.length === 0 ? (
             <div style={{

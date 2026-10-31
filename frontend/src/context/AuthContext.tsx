@@ -7,7 +7,9 @@ import {
   getAuthToken,
   getMeApi,
   getStoredUser,
+  isUnauthorizedError,
   loginApi,
+  onUnauthorized,
   registerApi,
   setAuthToken,
   setStoredUser,
@@ -30,6 +32,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Subscribe to centralized 401 Unauthorized notifications
+  useEffect(() => {
+    const unsubscribe = onUnauthorized(() => {
+      setToken(null);
+      setUser(null);
+    });
+    return unsubscribe;
+  }, []);
+
   useEffect(() => {
     const initializeAuth = async () => {
       const savedToken = getAuthToken();
@@ -42,13 +53,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Verify session in background
         try {
           const freshUser = await getMeApi(savedToken);
-          setUser(freshUser);
-          setStoredUser(freshUser);
-        } catch {
-          // Token expired or invalid
-          clearAuth();
-          setToken(null);
-          setUser(null);
+          // Only update user state if the verified token is STILL the active token in localStorage
+          if (getAuthToken() === savedToken) {
+            setUser(freshUser);
+            setStoredUser(freshUser);
+          }
+        } catch (err: unknown) {
+          if (isUnauthorizedError(err)) {
+            // ONLY clear session if the failed token is STILL the active token in localStorage.
+            // Never allow a stale verification request to clear a newly established login session.
+            if (getAuthToken() === savedToken) {
+              clearAuth();
+              setToken(null);
+              setUser(null);
+            }
+          } else {
+            // Ordinary network error (offline) or server error (500):
+            // DO NOT clear auth session; allow user to continue with cached session
+            console.warn(
+              'Could not verify session with backend, continuing with stored session:',
+              err instanceof Error ? err.message : 'Unknown error'
+            );
+          }
         }
       }
       setIsLoading(false);

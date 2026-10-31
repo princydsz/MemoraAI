@@ -26,8 +26,9 @@ export default function Navbar() {
           {isAuthenticated && user ? (
             <>
               <Link href="/dashboard" className="nav-link">Dashboard</Link>
+              <Link href="/family" className="nav-link">Family Circle</Link>
               <Link href="/memories" className="nav-link">Memory Vault</Link>
-              <Link href="/ask" className="nav-link nav-link--active">Ask AI</Link>
+              <Link href="/ask" className="nav-link">Ask AI</Link>
               <Link href="/profile" className="nav-link">Profile</Link>
 
               <div className="nav-user" aria-label="Account menu">

@@ -1251,12 +1251,386 @@ button:not(:disabled):hover {
   overscroll-behavior: contain;
 }
 
+/* ==========================================================================
+   Dementia-Friendly Patient Dashboard Styles
+   ========================================================================== */
+
+.patient-welcome-card {
+  padding: clamp(1.6rem, 3.5vw, 2.5rem);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(251, 248, 245, 0.9));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  margin-top: 1rem;
+}
+
+.patient-orientation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.patient-orientation-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  background: rgba(74, 142, 139, 0.12);
+  color: var(--accent-strong);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.patient-time-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(182, 90, 70, 0.1);
+  color: var(--primary-hover);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.patient-greeting-title {
+  margin: 1rem 0 0.5rem;
+  font-size: clamp(2.2rem, 4.5vw, 3.2rem);
+  line-height: 1.08;
+  letter-spacing: -0.05em;
+  color: var(--text);
+}
+
+.patient-reassurance-text {
+  margin: 0;
+  max-width: 44rem;
+  color: var(--text-muted);
+  font-size: 1.15rem;
+  line-height: 1.55;
+}
+
+/* Patient Notification / Alert */
+.patient-notification-banner {
+  margin-top: 1.25rem;
+  padding: 1.1rem 1.4rem;
+  background: var(--success-background);
+  border: 1.5px solid var(--success-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.patient-notification-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+
+/* 2x2 Large Touch Quick Actions Grid */
+.patient-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.75rem;
+}
+
+.patient-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.4rem 1.6rem;
+  min-height: 110px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--text);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  font: inherit;
+}
+
+.patient-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+
+.patient-action-btn:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.patient-action-btn--talk {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(251, 233, 222, 0.85));
+  border-color: rgba(182, 90, 70, 0.5);
+}
+
+.patient-action-btn--talk:hover {
+  border-color: var(--primary);
+  box-shadow: 0 14px 30px rgba(182, 90, 70, 0.18);
+}
+
+.patient-action-btn--memories {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(233, 244, 243, 0.8));
+  border-color: rgba(74, 142, 139, 0.45);
+}
+
+.patient-action-btn--memories:hover {
+  border-color: var(--accent);
+  box-shadow: 0 14px 30px rgba(74, 142, 139, 0.18);
+}
+
+.patient-action-btn--schedule {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(254, 246, 237, 0.85));
+  border-color: rgba(244, 169, 127, 0.5);
+}
+
+.patient-action-btn--schedule:hover {
+  border-color: var(--highlight);
+  box-shadow: 0 14px 30px rgba(244, 169, 127, 0.22);
+}
+
+.patient-action-btn--family {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(249, 244, 236, 0.85));
+  border-color: rgba(183, 155, 141, 0.45);
+}
+
+.patient-action-btn--family:hover {
+  border-color: var(--control-border);
+  box-shadow: 0 14px 30px rgba(62, 39, 35, 0.12);
+}
+
+.patient-action-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  font-size: 1.8rem;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(62, 39, 35, 0.08);
+}
+
+.patient-action-icon-wrapper--talk {
+  background: linear-gradient(135deg, var(--primary), #c56c58);
+  color: #ffffff;
+}
+
+.patient-action-icon-wrapper--memories {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #ffffff;
+}
+
+.patient-action-icon-wrapper--schedule {
+  background: linear-gradient(135deg, #e58742, #c56c58);
+  color: #ffffff;
+}
+
+.patient-action-icon-wrapper--family {
+  background: linear-gradient(135deg, #725C52, #4e3d36);
+  color: #ffffff;
+}
+
+.patient-action-details {
+  flex: 1;
+}
+
+.patient-action-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.patient-action-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.patient-action-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.patient-action-badge--primary {
+  background: rgba(182, 90, 70, 0.12);
+  color: var(--primary-hover);
+}
+
+.patient-action-badge--accent {
+  background: rgba(74, 142, 139, 0.12);
+  color: var(--accent-strong);
+}
+
+.patient-action-badge--highlight {
+  background: rgba(244, 169, 127, 0.22);
+  color: #8c4516;
+}
+
+.patient-action-badge--muted {
+  background: rgba(114, 92, 82, 0.1);
+  color: var(--text-muted);
+}
+
+.patient-action-desc {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
+/* Today's Schedule Section */
+.patient-schedule-section {
+  margin-top: 2.25rem;
+  padding: clamp(1.6rem, 3vw, 2.2rem);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.patient-schedule-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.patient-demo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  background: var(--warning-background);
+  border: 1px solid var(--warning-border);
+  color: var(--warning);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.patient-schedule-timeline {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.patient-timeline-card {
+  padding: 1.4rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.patient-timeline-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(74, 142, 139, 0.5);
+}
+
+.patient-timeline-period {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.patient-timeline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.patient-timeline-time {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.patient-timeline-title {
+  margin: 0.6rem 0 0.4rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.patient-timeline-desc {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.patient-timeline-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+
+/* Patient Orientation & Assistance Panel */
+.patient-care-panel {
+  margin-top: 2rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.patient-care-card {
+  padding: 1.6rem;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
 @media (max-width: 900px) {
   .hero,
   .auth-shell,
   .feature-strip,
   .metrics-grid,
-  .action-grid {
+  .action-grid,
+  .patient-actions-grid,
+  .patient-schedule-timeline,
+  .patient-care-panel {
     grid-template-columns: 1fr;
   }
 
@@ -1264,7 +1638,8 @@ button:not(:disabled):hover {
     padding: 1.5rem 0.75rem;
   }
 
-  .welcome-panel {
+  .welcome-panel,
+  .patient-orientation-header {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -1314,6 +1689,733 @@ button:not(:disabled):hover {
 
   .memory-grid {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .patient-action-btn {
+    padding: 1.15rem 1.25rem;
+    min-height: 90px;
+  }
+
+  .patient-action-icon-wrapper {
+    width: 52px;
+    height: 52px;
+    font-size: 1.5rem;
+  }
+
+  .patient-action-title {
+    font-size: 1.2rem;
+  }
+}
+
+/* ==========================================================================
+   Family & Caregiver Dashboard Styles
+   ========================================================================== */
+
+.family-dashboard-shell {
+  padding: 1.5rem 0 4rem;
+}
+
+.family-top-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  padding: clamp(1.4rem, 3vw, 2.2rem);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(251, 248, 245, 0.92));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.family-header-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.family-demo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.8rem;
+  border-radius: 999px;
+  background: var(--warning-background);
+  border: 1px solid var(--warning-border);
+  color: var(--warning);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.family-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.family-notif-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.1rem;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.family-notif-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+.family-notif-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--primary);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+/* Patient Overview & Wellness */
+.family-patient-card {
+  margin-top: 1.5rem;
+  padding: clamp(1.4rem, 3vw, 2.2rem);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 1.75rem;
+  align-items: center;
+}
+
+.family-patient-identity {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.family-patient-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(182, 90, 70, 0.18), rgba(74, 142, 139, 0.22));
+  border: 3px solid var(--accent);
+  display: grid;
+  place-items: center;
+  font-size: 2.2rem;
+  color: var(--text);
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(62, 39, 35, 0.08);
+}
+
+.family-patient-meta h2 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+
+.family-patient-subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.family-relationship-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(74, 142, 139, 0.12);
+  color: var(--accent-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.family-wellness-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.family-wellness-box {
+  padding: 1.1rem 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.family-wellness-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.family-wellness-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.family-wellness-note {
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.family-progress-track {
+  width: 100%;
+  height: 7px;
+  background: rgba(62, 39, 35, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.family-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  transition: width 0.3s ease;
+}
+
+/* Sections Grid Layout */
+.family-main-grid {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1.75rem;
+}
+
+.family-card-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: clamp(1.35rem, 2.5vw, 1.85rem);
+  margin-bottom: 1.5rem;
+}
+
+.family-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.family-panel-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+/* Daily Routines & Caregiver Check-offs */
+.family-routines-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.family-routine-item {
+  padding: 1.15rem 1.3rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--surface-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.25rem;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.family-routine-item--completed {
+  background: var(--success-background);
+  border-color: var(--success-border);
+}
+
+.family-routine-info {
+  flex: 1;
+}
+
+.family-routine-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.family-routine-time {
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.family-routine-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.family-routine-desc {
+  margin: 0.3rem 0 0;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.family-routine-tip {
+  margin-top: 0.45rem;
+  font-size: 0.82rem;
+  color: var(--accent-strong);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.family-check-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.15rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  flex-shrink: 0;
+}
+
+.family-check-toggle-btn--done {
+  background: var(--surface);
+  border-color: var(--success-border);
+  color: var(--accent-strong);
+}
+
+.family-check-toggle-btn--done:hover {
+  background: #fdfefe;
+  transform: translateY(-1px);
+}
+
+.family-check-toggle-btn--pending {
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  color: white;
+  box-shadow: 0 4px 12px rgba(182, 90, 70, 0.25);
+}
+
+.family-check-toggle-btn--pending:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(182, 90, 70, 0.35);
+}
+
+/* Family Contributions Stream */
+.family-contrib-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.family-contrib-card {
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 4px 12px rgba(62, 39, 35, 0.04);
+}
+
+.family-contrib-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.family-contributor-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.family-contrib-title {
+  margin: 0.25rem 0 0.35rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.family-contrib-desc {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.family-contrib-media-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+
+/* Patient Memories Showcase */
+.family-memories-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.family-memory-card {
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.family-memory-category {
+  display: inline-flex;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(182, 90, 70, 0.12);
+  color: var(--primary-hover);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.family-memory-title {
+  margin: 0.6rem 0 0.4rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.family-memory-snippet {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* Appointments List */
+.family-appointments-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.family-appointment-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.1rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+
+.family-appointment-datebox {
+  width: 58px;
+  height: 64px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--primary), #c56c58);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(182, 90, 70, 0.2);
+}
+
+.family-appointment-datebox-month {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.family-appointment-datebox-day {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.family-appointment-details {
+  flex: 1;
+}
+
+.family-appointment-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.family-appointment-clinic {
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.family-appointment-notes {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+/* Care Circle Directory */
+.family-members-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.family-member-card {
+  padding: 1.15rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.family-member-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: white;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.family-member-info {
+  flex: 1;
+}
+
+.family-member-name {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.family-member-role {
+  margin: 0.2rem 0 0.35rem;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.family-permission-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.family-permission-chip--full {
+  background: rgba(182, 90, 70, 0.14);
+  color: var(--primary-hover);
+}
+
+.family-permission-chip--contribute {
+  background: rgba(74, 142, 139, 0.14);
+  color: var(--accent-strong);
+}
+
+.family-permission-chip--view {
+  background: rgba(114, 92, 82, 0.1);
+  color: var(--text-muted);
+}
+
+/* Notifications Drawer */
+.family-notifications-panel {
+  position: fixed;
+  top: 80px;
+  right: 1.5rem;
+  width: min(420px, calc(100vw - 3rem));
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 1.35rem;
+  z-index: 130;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.family-notification-item {
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  position: relative;
+  transition: background-color 0.2s ease;
+}
+
+.family-notification-item--unread {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(74, 142, 139, 0.12);
+}
+
+.family-notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.family-notification-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.family-notification-time {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.family-notification-msg {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Modal form inputs */
+.family-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.family-form-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.family-form-input,
+.family-form-select,
+.family-form-textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--control-border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.98rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.family-form-input:focus,
+.family-form-select:focus,
+.family-form-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(182, 90, 70, 0.18);
+}
+
+/* Responsive Media Queries */
+@media (max-width: 960px) {
+  .family-patient-card {
+    grid-template-columns: 1fr;
+  }
+  .family-main-grid {
+    grid-template-columns: 1fr;
+  }
+  .family-memories-grid {
+    grid-template-columns: 1fr;
+  }
+  .family-members-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .family-wellness-grid {
+    grid-template-columns: 1fr;
+  }
+  .family-patient-identity {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .family-routine-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .family-check-toggle-btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 

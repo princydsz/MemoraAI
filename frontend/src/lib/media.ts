@@ -2,10 +2,65 @@ import type { MediaValidationResult, MemoryMedia } from '../types/media';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 const TOKEN_KEY = 'memora_auth_token';
+const USER_KEY = 'memora_auth_user';
+
+export class UnauthorizedError extends Error {
+  readonly status = 401;
+
+  constructor(message = 'Unauthorized: Session has expired. Please log in again.') {
+    super(message);
+    this.name = 'UnauthorizedError';
+    Object.setPrototypeOf(this, UnauthorizedError.prototype);
+  }
+}
 
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(TOKEN_KEY);
+}
+
+function notifyUnauthorized(requestToken?: string | null): void {
+  // If a requestToken was specified, only trigger logout if it matches the current active token
+  if (requestToken) {
+    const currentToken = getAuthToken();
+    if (!currentToken || currentToken !== requestToken) {
+      // Stale request from a previous token; ignore for logout purposes.
+      return;
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const customHandler = (window as unknown as {
+      __memora_handle_unauthorized?: (options?: { expectedToken?: string }) => void;
+    }).__memora_handle_unauthorized;
+
+    if (typeof customHandler === 'function') {
+      try {
+        customHandler(requestToken ? { expectedToken: requestToken } : undefined);
+        return;
+      } catch {
+        // Fall back to direct clearance
+      }
+    }
+
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      if (window.location && typeof window.location.assign === 'function') {
+        const pathname = window.location.pathname || '';
+        const isAuthPage =
+          pathname === '/login' ||
+          pathname === '/register' ||
+          pathname.startsWith('/login') ||
+          pathname.startsWith('/register');
+        if (!isAuthPage) {
+          window.location.assign('/login');
+        }
+      }
+    } catch {
+      // Safe fallback
+    }
+  }
 }
 
 export const MAX_MEDIA_PER_MEMORY = 5;
@@ -121,22 +176,42 @@ export function formatFileSize(bytes: number): string {
  * Fetches the list of attached media metadata for a specific memory.
  */
 export async function getMemoryMediaApi(memoryId: string): Promise<MemoryMedia[]> {
-  const response = await fetch(`${API_BASE_URL}/api/memories/${memoryId}/media`, {
-    method: 'GET',
-    headers: getAuthHeaders(true),
-  });
+  const requestToken = getAuthToken();
+  if (!requestToken) {
+    throw new UnauthorizedError('Unauthorized: No authentication token found.');
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/memories/${memoryId}/media`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${requestToken}`,
+      },
+    });
+  } catch {
+    throw new Error('Unable to connect to media storage. Please check your network connection.');
+  }
 
   if (response.status === 401) {
-    throw new Error('Unauthorized: Session has expired. Please log in again.');
+    notifyUnauthorized(requestToken);
+    throw new UnauthorizedError('Unauthorized: Session has expired. Please log in again.');
   }
 
   if (response.status === 404) {
     throw new Error('Memory not found or you do not have permission to view its media.');
   }
 
-  const body = await response.json();
+  let body: any = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+
   if (!response.ok) {
-    throw new Error(body.message || body.error || 'Failed to fetch memory media attachments.');
+    throw new Error(body?.message || body?.error || `Failed to fetch memory media attachments (HTTP ${response.status}).`);
   }
 
   return body as MemoryMedia[];
@@ -146,12 +221,9 @@ export async function getMemoryMediaApi(memoryId: string): Promise<MemoryMedia[]
  * Uploads a batch of images to the backend media vault.
  */
 export async function uploadMemoryMediaApi(memoryId: string, files: File[]): Promise<MemoryMedia[]> {
-  const token = getAuthToken();
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  const requestToken = getAuthToken();
+  if (!requestToken) {
+    throw new UnauthorizedError('Unauthorized: No authentication token found.');
   }
 
   const formData = new FormData();
@@ -159,19 +231,34 @@ export async function uploadMemoryMediaApi(memoryId: string, files: File[]): Pro
     formData.append('files', file);
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/memories/${memoryId}/media`, {
-    method: 'POST',
-    headers,
-    body: formData,
-  });
-
-  if (response.status === 401) {
-    throw new Error('Unauthorized: Session has expired. Please log in again.');
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/memories/${memoryId}/media`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${requestToken}`,
+      },
+      body: formData,
+    });
+  } catch {
+    throw new Error('Unable to connect to media storage. Please check your network connection.');
   }
 
-  const body = await response.json();
+  if (response.status === 401) {
+    notifyUnauthorized(requestToken);
+    throw new UnauthorizedError('Unauthorized: Session has expired. Please log in again.');
+  }
+
+  let body: any = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+
   if (!response.ok) {
-    throw new Error(body.message || body.error || 'Failed to upload image(s).');
+    throw new Error(body?.message || body?.error || `Failed to upload image(s) (HTTP ${response.status}).`);
   }
 
   return body as MemoryMedia[];
@@ -181,19 +268,26 @@ export async function uploadMemoryMediaApi(memoryId: string, files: File[]): Pro
  * Fetches the binary image stream from the authenticated download endpoint.
  */
 export async function fetchMediaBlobApi(memoryId: string, mediaId: string): Promise<Blob> {
-  const token = getAuthToken();
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  const requestToken = getAuthToken();
+  if (!requestToken) {
+    throw new UnauthorizedError('Unauthorized: No authentication token found.');
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/memories/${memoryId}/media/${mediaId}`, {
-    method: 'GET',
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/memories/${memoryId}/media/${mediaId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${requestToken}`,
+      },
+    });
+  } catch {
+    throw new Error('Unable to download media file. Please check your network connection.');
+  }
 
   if (response.status === 401) {
-    throw new Error('Unauthorized: Session has expired.');
+    notifyUnauthorized(requestToken);
+    throw new UnauthorizedError('Unauthorized: Session has expired.');
   }
 
   if (!response.ok) {
@@ -207,26 +301,33 @@ export async function fetchMediaBlobApi(memoryId: string, mediaId: string): Prom
  * Deletes an image attachment from MinIO and PostgreSQL.
  */
 export async function deleteMemoryMediaApi(memoryId: string, mediaId: string): Promise<void> {
-  const token = getAuthToken();
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  const requestToken = getAuthToken();
+  if (!requestToken) {
+    throw new UnauthorizedError('Unauthorized: No authentication token found.');
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/memories/${memoryId}/media/${mediaId}`, {
-    method: 'DELETE',
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/memories/${memoryId}/media/${mediaId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${requestToken}`,
+      },
+    });
+  } catch {
+    throw new Error('Unable to connect to media storage. Please check your network connection.');
+  }
 
   if (response.status === 401) {
-    throw new Error('Unauthorized: Session has expired.');
+    notifyUnauthorized(requestToken);
+    throw new UnauthorizedError('Unauthorized: Session has expired.');
   }
 
   if (!response.ok) {
-    let errorMsg = 'Failed to delete image attachment.';
+    let errorMsg = `Failed to delete image attachment (HTTP ${response.status}).`;
     try {
       const body = await response.json();
-      errorMsg = body.message || body.error || errorMsg;
+      errorMsg = body?.message || body?.error || errorMsg;
     } catch {
       // ignore json parse failure on non-JSON response
     }
