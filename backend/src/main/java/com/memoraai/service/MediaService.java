@@ -68,6 +68,7 @@ public class MediaService {
      */
     @Transactional
     public List<MemoryMediaResponse> uploadMedia(UUID memoryId, List<MultipartFile> files, String userEmail) {
+        long tStart = System.currentTimeMillis();
         User user = getAuthenticatedUser(userEmail);
 
         if (files == null || files.isEmpty()) {
@@ -134,6 +135,10 @@ public class MediaService {
                 );
                 savedEntities.add(memoryMediaRepository.save(media));
             }
+
+            long tTotal = System.currentTimeMillis() - tStart;
+            log.info("[TIMING] Media upload completed in {}ms (files={}, memoryId={})",
+                    tTotal, files.size(), memoryId);
 
             return savedEntities.stream()
                     .map(MemoryMediaResponse::fromEntity)

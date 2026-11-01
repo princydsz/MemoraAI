@@ -22,6 +22,7 @@ public class VectorStoreService {
     private final int qdrantPort;
     private final String collectionName;
     private final double scoreThreshold;
+    private volatile boolean collectionInitialized = false;
 
     public VectorStoreService(RestTemplate restTemplate,
                               AiService aiService,
@@ -60,34 +61,66 @@ public class VectorStoreService {
     }
 
     public void initCollectionIfNeeded() {
-        String url = getQdrantBaseUrl() + "/collections/" + collectionName;
-        try {
-            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-            if (response.getStatusCode().is2xxSuccessful()) {
-                return;
-            }
-        } catch (Exception ignored) {
-            // Collection does not exist or Qdrant offline
+        if (collectionInitialized) {
+            return;
         }
 
-        // Create collection
-        try {
-            Map<String, Object> vectorParams = new HashMap<>();
-            vectorParams.put("size", 384);
-            vectorParams.put("distance", "Cosine");
+        synchronized (this) {
+            if (collectionInitialized) {
+                return;
+            }
 
-            Map<String, Object> body = new HashMap<>();
-            body.put("vectors", vectorParams);
+            String url = getQdrantBaseUrl() + "/collections/" + collectionName;
+            boolean exists = false;
+            try {
+                ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+                if (response.getStatusCode().is2xxSuccessful()) {
+                    exists = true;
+                }
+            } catch (Exception ignored) {
+                // Collection does not exist or Qdrant offline
+            }
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            if (!exists) {
+                // Create collection
+                try {
+                    Map<String, Object> vectorParams = new HashMap<>();
+                    vectorParams.put("size", 384);
+                    vectorParams.put("distance", "Cosine");
 
-            restTemplate.exchange(url, HttpMethod.PUT, entity, Map.class);
-            logger.info("Initialized Qdrant collection '{}'", collectionName);
-        } catch (Exception e) {
-            logger.error("Could not initialize Qdrant collection '{}'.", collectionName);
-            throw new MemoryRetrievalException("Memory index is unavailable.", e);
+                    Map<String, Object> body = new HashMap<>();
+                    body.put("vectors", vectorParams);
+
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.setContentType(MediaType.APPLICATION_JSON);
+                    HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+                    restTemplate.exchange(url, HttpMethod.PUT, entity, Map.class);
+                    logger.info("Initialized Qdrant collection '{}'", collectionName);
+                } catch (Exception e) {
+                    logger.error("Could not initialize Qdrant collection '{}'.", collectionName);
+                    throw new MemoryRetrievalException("Memory index is unavailable.", e);
+                }
+            }
+
+            // Ensure keyword payload index for user_id to accelerate filtered search
+            try {
+                String indexUrl = getQdrantBaseUrl() + "/collections/" + collectionName + "/index";
+                Map<String, Object> indexBody = new HashMap<>();
+                indexBody.put("field_name", "user_id");
+                indexBody.put("field_schema", "keyword");
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                HttpEntity<Map<String, Object>> indexEntity = new HttpEntity<>(indexBody, headers);
+
+                restTemplate.exchange(indexUrl, HttpMethod.PUT, indexEntity, Map.class);
+                logger.info("Ensured keyword payload index for 'user_id' in Qdrant collection '{}'", collectionName);
+            } catch (Exception e) {
+                logger.warn("Could not ensure payload index for 'user_id' in Qdrant: {}", e.getMessage());
+            }
+
+            collectionInitialized = true;
         }
     }
 
@@ -96,6 +129,7 @@ public class VectorStoreService {
             return;
         }
 
+        long tStart = System.currentTimeMillis();
         initCollectionIfNeeded();
 
         String searchableText = String.format("Title: %s | Content: %s | Category: %s | Tags: %s",
@@ -104,12 +138,16 @@ public class VectorStoreService {
                 memory.getCategory() != null ? memory.getCategory() : "",
                 memory.getTags() != null ? memory.getTags() : "");
 
+        long tEmbedStart = System.currentTimeMillis();
         List<Double> vector = aiService.generateEmbedding(searchableText);
+        long tEmbed = System.currentTimeMillis() - tEmbedStart;
+
         if (vector.size() != 384) {
             throw new MemoryRetrievalException("Embedding service returned an invalid vector.");
         }
 
         try {
+            long tQdrantStart = System.currentTimeMillis();
             String url = getQdrantBaseUrl() + "/collections/" + collectionName + "/points?wait=true";
 
             Map<String, Object> payload = new HashMap<>();
@@ -132,7 +170,10 @@ public class VectorStoreService {
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
             restTemplate.exchange(url, HttpMethod.PUT, entity, Map.class);
-            logger.info("Indexed memory {} in Qdrant", memory.getId());
+            long tQdrant = System.currentTimeMillis() - tQdrantStart;
+            long tTotal = System.currentTimeMillis() - tStart;
+            logger.info("[TIMING] Qdrant indexed memory {} in {}ms (embedding={}ms, qdrantPut={}ms)",
+                    memory.getId(), tTotal, tEmbed, tQdrant);
         } catch (Exception e) {
             logger.error("Failed to index memory {} in Qdrant.", memory.getId());
             throw new MemoryRetrievalException("Memory could not be indexed.", e);
@@ -167,14 +208,19 @@ public class VectorStoreService {
             return Collections.emptyList();
         }
 
+        long tStart = System.currentTimeMillis();
         initCollectionIfNeeded();
 
+        long tEmbedStart = System.currentTimeMillis();
         List<Double> queryVector = aiService.generateEmbedding(queryText.trim());
+        long tEmbed = System.currentTimeMillis() - tEmbedStart;
+
         if (queryVector.size() != 384) {
             throw new MemoryRetrievalException("Embedding service returned an invalid vector.");
         }
 
         try {
+            long tQdrantStart = System.currentTimeMillis();
             String url = getQdrantBaseUrl() + "/collections/" + collectionName + "/points/search";
 
             Map<String, Object> userMatch = new HashMap<>();
@@ -199,6 +245,8 @@ public class VectorStoreService {
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
             ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            long tQdrant = System.currentTimeMillis() - tQdrantStart;
+
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 List<Map<String, Object>> resultList = (List<Map<String, Object>>) response.getBody().get("result");
                 if (resultList != null) {
@@ -214,6 +262,9 @@ public class VectorStoreService {
                             }
                         }
                     }
+                    long tTotal = System.currentTimeMillis() - tStart;
+                    logger.info("[TIMING] Qdrant search completed in {}ms (embedding={}ms, qdrantSearch={}ms, hits={})",
+                            tTotal, tEmbed, tQdrant, searchResults.size());
                     return searchResults;
                 }
             }

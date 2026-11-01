@@ -493,6 +493,78 @@ class TestAiService(unittest.TestCase):
             mock_sleep.assert_not_called()
 
     @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    @patch("time.sleep")
+    @patch("app.main.httpx.Client")
+    def test_rag_answer_gemini_exponential_backoff_on_consecutive_503(self, mock_client_cls, mock_sleep):
+        mock_client = MagicMock()
+        mock_client_cls.return_value.__enter__.return_value = mock_client
+
+        mock_resp_503_1 = MagicMock()
+        mock_resp_503_1.status_code = 503
+        mock_resp_503_1.headers = {}
+        mock_resp_503_1.json.return_value = {"error": {"code": 503, "message": "High demand 1"}}
+
+        mock_resp_503_2 = MagicMock()
+        mock_resp_503_2.status_code = 503
+        mock_resp_503_2.headers = {}
+        mock_resp_503_2.json.return_value = {"error": {"code": 503, "message": "High demand 2"}}
+
+        mock_resp_200 = MagicMock()
+        mock_resp_200.status_code = 200
+        mock_resp_200.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": "Resolved after 2 retries!"}]}}]
+        }
+
+        mock_client.post.side_effect = [mock_resp_503_1, mock_resp_503_2, mock_resp_200]
+
+        with patch.dict(os.environ, {"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "dummy_key"}):
+            payload = {
+                "question": "Can you answer?",
+                "memories": [{"title": "Test", "content": "Test content."}]
+            }
+            response = client.post("/rag/answer", json=payload)
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data["answer"], "Resolved after 2 retries!")
+            self.assertEqual(mock_client.post.call_count, 3)
+            self.assertEqual(mock_sleep.call_count, 2)
+            # 1st sleep: base 1.5s (no jitter on attempt 0)
+            self.assertEqual(mock_sleep.call_args_list[0].args[0], 1.5)
+            # 2nd sleep: base 3.0s + jitter >= 3.0s
+            self.assertGreaterEqual(mock_sleep.call_args_list[1].args[0], 3.0)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
+    @patch("time.sleep")
+    @patch("app.main.httpx.Client")
+    def test_rag_answer_gemini_respects_retry_after_header(self, mock_client_cls, mock_sleep):
+        mock_client = MagicMock()
+        mock_client_cls.return_value.__enter__.return_value = mock_client
+
+        mock_resp_429 = MagicMock()
+        mock_resp_429.status_code = 429
+        mock_resp_429.headers = {"Retry-After": "4.5"}
+        mock_resp_429.text = "Transient rate spike. Please slow down."
+        mock_resp_429.json.return_value = {"error": {"code": 429, "message": "Rate limit"}}
+
+        mock_resp_200 = MagicMock()
+        mock_resp_200.status_code = 200
+        mock_resp_200.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": "Success after Retry-After!"}]}}]
+        }
+
+        mock_client.post.side_effect = [mock_resp_429, mock_resp_200]
+
+        with patch.dict(os.environ, {"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "dummy_key"}):
+            payload = {
+                "question": "Rate limited?",
+                "memories": [{"title": "Note", "content": "Testing Retry-After."}]
+            }
+            response = client.post("/rag/answer", json=payload)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(mock_client.post.call_count, 2)
+            mock_sleep.assert_called_once_with(4.5)
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI / TestClient not installed in host environment")
     def test_extract_entities_people_and_places(self):
         title = "Family Vacation"
         content = "Yesterday had dinner with Sarah and Uncle Bob in Paris near Central Park. Mom visited us at Lake Tahoe."
@@ -779,7 +851,8 @@ class TestAiService(unittest.TestCase):
                 mock_model.transcribe.assert_called_once()
                 kwargs = mock_model.transcribe.call_args.kwargs
                 self.assertEqual(kwargs.get("task"), "transcribe")
-                self.assertEqual(kwargs.get("beam_size"), 5)
+                expected_beam_size = int(os.getenv("WHISPER_BEAM_SIZE", "2"))
+                self.assertEqual(kwargs.get("beam_size"), expected_beam_size)
                 self.assertTrue(kwargs.get("vad_filter"))
                 self.assertFalse(kwargs.get("condition_on_previous_text"))
                 self.assertIsNone(kwargs.get("language"))
@@ -1331,10 +1404,11 @@ class TestAiService(unittest.TestCase):
                 self.assertEqual(mock_model.transcribe.call_count, 2)
                 calls = mock_model.transcribe.call_args_list
 
-                # Pass 1 arguments: auto-detection with baseline beam_size=5
+                # Pass 1 arguments: auto-detection with baseline beam_size (default 2)
                 pass1_kwargs = calls[0].kwargs
                 self.assertIsNone(pass1_kwargs.get("language"))
-                self.assertEqual(pass1_kwargs.get("beam_size"), 5)
+                expected_beam_size = int(os.getenv("WHISPER_BEAM_SIZE", "2"))
+                self.assertEqual(pass1_kwargs.get("beam_size"), expected_beam_size)
                 self.assertTrue(pass1_kwargs.get("multilingual"))
 
                 # Pass 2 arguments: Hindi conditioning with fallback beam_size=3

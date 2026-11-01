@@ -31,7 +31,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 90s
 
   neo4j:
     image: neo4j:5.15.0
@@ -69,7 +69,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 90s
 
   ai-service:
     build:
@@ -89,7 +89,8 @@ services:
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-small}
       - WHISPER_DEVICE=${WHISPER_DEVICE:-cpu}
       - WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-int8}
-      - WHISPER_BEAM_SIZE=${WHISPER_BEAM_SIZE:-5}
+      - WHISPER_BEAM_SIZE=2
+      - WHISPER_CPU_THREADS=${WHISPER_CPU_THREADS:-4}
       - WHISPER_VAD_FILTER=${WHISPER_VAD_FILTER:-true}
       - WHISPER_CONDITION_ON_PREVIOUS_TEXT=${WHISPER_CONDITION_ON_PREVIOUS_TEXT:-false}
       - WHISPER_MULTILINGUAL=${WHISPER_MULTILINGUAL:-true}
@@ -109,7 +110,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 90s
 
   backend:
     build:

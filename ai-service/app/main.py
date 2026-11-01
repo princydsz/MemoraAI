@@ -1,7 +1,9 @@
+import asyncio
 import logging
 import json
 import math
 import os
+import random
 import re
 import subprocess
 import tempfile
@@ -67,6 +69,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def startup_preload_models():
+    """
+    Eagerly preloads neural embedding and Whisper models during application startup
+    when local providers are enabled, eliminating cold-start latency on user requests.
+    """
+    try:
+        t0 = time.perf_counter()
+        get_embedding_model()
+        logger.info("[STARTUP] Preloaded neural embedding model in %.3fs", time.perf_counter() - t0)
+    except Exception as exc:
+        logger.warning("[STARTUP] Neural embedding model preload deferred: %s", exc)
+
+    stt_provider = os.getenv("STT_PROVIDER", "mock").lower().strip() or "mock"
+    if stt_provider == "whisper-local":
+        try:
+            t_whisper = time.perf_counter()
+            get_whisper_model()
+            logger.info("[STARTUP] Preloaded faster-whisper model in %.3fs", time.perf_counter() - t_whisper)
+        except Exception as exc:
+            logger.warning("[STARTUP] Whisper model preload deferred: %s", exc)
 
 class ProcessMemoryRequest(BaseModel):
     title: str = Field(..., min_length=1, description="Memory title")
@@ -488,6 +512,36 @@ def probe_audio_duration(file_path: str, format_key: Optional[str] = None) -> Op
         except Exception:
             pass
 
+    # Live-streamed containers (browser MediaRecorder WebM/Opus or OGG) omit duration in the header,
+    # causing ffprobe format=duration to scan the whole file for ~5s only to report 'N/A'.
+    # Fast path: decode stream duration directly via ffmpeg null muxer (<1s).
+    def _probe_via_null_muxer(p: str) -> Optional[float]:
+        try:
+            cmd_ffmpeg = [
+                "ffmpeg",
+                "-nostdin",
+                "-i", p,
+                "-vn", "-sn", "-dn",
+                "-f", "null",
+                "-"
+            ]
+            res_ffmpeg = subprocess.run(cmd_ffmpeg, capture_output=True, text=True, timeout=10)
+            if res_ffmpeg.returncode == 0:
+                matches = re.findall(r"time=(\d+):(\d+):(\d+\.\d+)", res_ffmpeg.stderr)
+                if matches:
+                    h, m, s = matches[-1]
+                    val = int(h) * 3600 + int(m) * 60 + float(s)
+                    if val > 0:
+                        return round(val, 2)
+        except Exception:
+            pass
+        return None
+
+    if format_key in ("webm", "ogg"):
+        fast_val = _probe_via_null_muxer(file_path)
+        if fast_val is not None:
+            return fast_val
+
     # Reliable media probe via ffprobe for all media containers
     try:
         cmd = [
@@ -509,7 +563,11 @@ def probe_audio_duration(file_path: str, format_key: Optional[str] = None) -> Op
 
     # Secondary fallback for live-streamed containers (e.g., browser MediaRecorder WebM/Opus)
     # where the container header omits duration ('N/A').
-    # Probe stream duration by inspecting audio packet timestamps and packet durations.
+    fast_val = _probe_via_null_muxer(file_path)
+    if fast_val is not None:
+        return fast_val
+
+    # Tertiary fallback: probe stream duration by inspecting audio packet timestamps.
     try:
         cmd_packets = [
             "ffprobe",
@@ -529,27 +587,6 @@ def probe_audio_duration(file_path: str, format_key: Optional[str] = None) -> Op
                 total = pts + dur
                 if total > 0:
                     return round(total, 2)
-    except Exception:
-        pass
-
-    # Tertiary fallback: decode progress via ffmpeg null muxer
-    try:
-        cmd_ffmpeg = [
-            "ffmpeg",
-            "-nostdin",
-            "-i", file_path,
-            "-vn", "-sn", "-dn",
-            "-f", "null",
-            "-"
-        ]
-        res_ffmpeg = subprocess.run(cmd_ffmpeg, capture_output=True, text=True, timeout=10)
-        if res_ffmpeg.returncode == 0:
-            matches = re.findall(r"time=(\d+):(\d+):(\d+\.\d+)", res_ffmpeg.stderr)
-            if matches:
-                h, m, s = matches[-1]
-                val = int(h) * 3600 + int(m) * 60 + float(s)
-                if val > 0:
-                    return round(val, 2)
     except Exception:
         pass
 
@@ -577,9 +614,11 @@ def get_whisper_model():
                     model_size = os.getenv("WHISPER_MODEL_SIZE", "small").strip() or "small"
                     device = os.getenv("WHISPER_DEVICE", "cpu").strip() or "cpu"
                     compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8").strip() or "int8"
-                    logger.info("Initializing faster-whisper model '%s' on device '%s' (%s)...",
-                                model_size, device, compute_type)
-                    _whisper_model = WhisperModel(model_size, device=device, compute_type=compute_type)
+                    cpu_threads_env = os.getenv("WHISPER_CPU_THREADS", "4").strip()
+                    cpu_threads = int(cpu_threads_env) if cpu_threads_env.isdigit() and int(cpu_threads_env) > 0 else 4
+                    logger.info("Initializing faster-whisper model '%s' on device '%s' (%s, cpu_threads=%d)...",
+                                model_size, device, compute_type, cpu_threads)
+                    _whisper_model = WhisperModel(model_size, device=device, compute_type=compute_type, cpu_threads=cpu_threads)
                     logger.info("faster-whisper model '%s' initialized successfully.", model_size)
                 except Exception as e:
                     logger.error("Failed to load faster-whisper model: %s", str(e))
@@ -611,6 +650,263 @@ def normalize_transcribe_language(language_input: Optional[str]) -> Optional[str
             return primary
     logger.warning("Unrecognized language override '%s'; falling back to auto-detection.", language_input)
     return None
+
+def _run_transcription_worker(
+    temp_path: str,
+    format_key: str,
+    target_lang: Optional[str],
+    total_size: int,
+    stt_provider: str,
+    max_duration: float,
+) -> TranscribeResponse:
+    """
+    Synchronous worker executed in a threadpool to prevent CPU-intensive audio decoding
+    and Whisper inference from blocking the FastAPI asyncio event loop.
+    """
+    t_start = time.perf_counter()
+
+    # 1. Enforce duration probe before any model inference or provider logic
+    t_probe_start = time.perf_counter()
+    duration = probe_audio_duration(temp_path, format_key)
+    t_probe = time.perf_counter() - t_probe_start
+
+    if duration is None or duration <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not determine audio duration. The file may be corrupt or an unsupported audio stream."
+        )
+
+    if duration > max_duration:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Audio duration ({duration:.1f}s) exceeds the maximum allowed limit of {int(max_duration)}s (5 minutes)."
+        )
+
+    # 2. Silence / inaudible detection
+    t_silence_start = time.perf_counter()
+    is_silent = check_audio_silence(temp_path, format_key)
+    t_silence = time.perf_counter() - t_silence_start
+
+    if is_silent:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No audible speech detected in the audio file."
+        )
+
+    logger.info(
+        "[TIMING] Audio validation completed in %.3fs (duration probe: %.3fs, silence check: %.3fs) for %d bytes (%s)",
+        t_probe + t_silence, t_probe, t_silence, total_size, format_key
+    )
+
+    if stt_provider == "whisper-local":
+        acquired = _transcribe_semaphore.acquire(blocking=True, timeout=60)
+        if not acquired:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Transcription service is busy. Please try again later."
+            )
+        try:
+            try:
+                model = get_whisper_model()
+            except Exception as e:
+                logger.error("Error obtaining Whisper model: %s", str(e))
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Speech transcription service unavailable: model initialization failed."
+                )
+
+            try:
+                beam_size_env = os.getenv("WHISPER_BEAM_SIZE", "2").strip()
+                beam_size = int(beam_size_env) if beam_size_env.isdigit() and int(beam_size_env) > 0 else 2
+            except (ValueError, TypeError):
+                beam_size = 2
+
+            vad_filter_env = os.getenv("WHISPER_VAD_FILTER", "true").strip().lower()
+            vad_filter = vad_filter_env in ("true", "1", "yes")
+
+            cond_prev_env = os.getenv("WHISPER_CONDITION_ON_PREVIOUS_TEXT", "false").strip().lower()
+            condition_on_previous_text = cond_prev_env in ("true", "1", "yes")
+
+            multilingual_env = os.getenv("WHISPER_MULTILINGUAL", "true").strip().lower()
+            multilingual_enabled = multilingual_env in ("true", "1", "yes")
+
+            # Multilingual code-switching configuration:
+            # When language is auto-detected (target_lang is None), enable multilingual segment re-detection
+            # and provide a conservative initial prompt with mixed-script examples (English, Hindi, Marathi)
+            # to prevent Whisper from forcing English words into Devanagari script.
+            # When an explicit language override is provided, preserve user selection and disable multilingual switching.
+            if target_lang is None:
+                transcribe_multilingual = multilingual_enabled
+                raw_initial_prompt = os.getenv("WHISPER_INITIAL_PROMPT", "English, हिन्दी, मराठी.").strip()
+                transcribe_initial_prompt = raw_initial_prompt if raw_initial_prompt else None
+            else:
+                transcribe_multilingual = False
+                transcribe_initial_prompt = None
+
+            # Gated Indic code-switching fallback configuration:
+            # Triggers only when auto-detection is used, primary detected language is English (<= en_max),
+            # and substantial probability mass is distributed across Indic languages (>= indic_min).
+            code_switch_fallback_env = os.getenv("WHISPER_CODE_SWITCH_FALLBACK", "true").strip().lower()
+            code_switch_fallback_enabled = code_switch_fallback_env in ("true", "1", "yes")
+
+            try:
+                code_switch_en_max = float(os.getenv("WHISPER_CODE_SWITCH_EN_MAX", "0.75").strip())
+            except (ValueError, TypeError):
+                code_switch_en_max = 0.75
+
+            try:
+                code_switch_indic_min = float(os.getenv("WHISPER_CODE_SWITCH_INDIC_MIN", "0.20").strip())
+            except (ValueError, TypeError):
+                code_switch_indic_min = 0.20
+
+            try:
+                fallback_beam_size = int(os.getenv("WHISPER_FALLBACK_BEAM_SIZE", "3").strip())
+                if fallback_beam_size <= 1:
+                    logger.warning("WHISPER_FALLBACK_BEAM_SIZE=%d is not allowed (must be >= 2). Falling back to 3.", fallback_beam_size)
+                    fallback_beam_size = 3
+            except (ValueError, TypeError):
+                fallback_beam_size = 3
+
+            indic_langs_env = os.getenv("WHISPER_INDIC_LANGUAGES", "hi,mr,ur,pa,gu,bn,sa,ta,te,kn,ml")
+            parsed_indic_langs = {lang.strip().lower() for lang in indic_langs_env.split(",") if lang.strip()}
+            indic_language_codes = parsed_indic_langs if parsed_indic_langs else DEFAULT_INDIC_LANGUAGES
+
+            try:
+                t_pass1_start = time.perf_counter()
+                transcribe_kwargs = {
+                    "task": "transcribe",
+                    "language": target_lang,
+                    "beam_size": beam_size,
+                    "vad_filter": vad_filter,
+                    "condition_on_previous_text": condition_on_previous_text,
+                    "multilingual": transcribe_multilingual,
+                }
+                if transcribe_initial_prompt:
+                    transcribe_kwargs["initial_prompt"] = transcribe_initial_prompt
+
+                segments, info = model.transcribe(
+                    temp_path,
+                    **transcribe_kwargs
+                )
+                transcript_parts = []
+                for segment in segments:
+                    if segment.text and segment.text.strip():
+                        transcript_parts.append(segment.text.strip())
+                transcript = " ".join(transcript_parts).strip()
+                detected_lang = info.language if hasattr(info, "language") and info.language else (target_lang or "en")
+                whisper_duration = round(info.duration, 2) if hasattr(info, "duration") and info.duration else duration
+                t_pass1 = time.perf_counter() - t_pass1_start
+
+                logger.info(
+                    "[TIMING] Whisper primary pass completed in %.3fs (beam_size=%d, detected_lang=%s, duration=%.1fs)",
+                    t_pass1, beam_size, detected_lang, whisper_duration
+                )
+
+                fallback_applied = False
+                # Gated two-pass fallback for Indian multilingual code-switched speech:
+                # When auto-detection is active, Whisper often locks into English (<|en|>) if the utterance
+                # starts with English words, causing subsequent Hindi/Marathi words to be translated into English
+                # rather than transcribed in original scripts. If primary detected language is 'en' with moderate
+                # confidence (<= en_max) and significant Indic language probability mass (>= indic_min), re-decode
+                # using Hindi conditioning (beam_size=fallback_beam_size) to preserve Latin for English and Devanagari for Hindi/Marathi.
+                if (
+                    code_switch_fallback_enabled
+                    and target_lang is None
+                    and getattr(info, "language", None) == "en"
+                    and isinstance(getattr(info, "language_probability", None), (int, float))
+                    and info.language_probability <= code_switch_en_max
+                ):
+                    indic_sum = 0.0
+                    all_probs = getattr(info, "all_language_probs", None)
+                    if all_probs and isinstance(all_probs, (list, tuple, dict)):
+                        try:
+                            probs_dict = dict(all_probs) if not isinstance(all_probs, dict) else all_probs
+                            indic_sum = sum(
+                                float(probs_dict.get(l, 0.0))
+                                for l in indic_language_codes
+                                if isinstance(probs_dict.get(l, 0.0), (int, float))
+                            )
+                        except Exception as e:
+                            logger.warning("Could not compute Indic language probability sum: %s", str(e))
+                            indic_sum = 0.0
+
+                    if indic_sum >= code_switch_indic_min:
+                        t_fb_start = time.perf_counter()
+                        logger.info(
+                            "Code-switching gate triggered (P(en)=%.3f <= %.2f, Indic=%.3f >= %.2f). Running fallback pass with hi conditioning (beam_size=%d)...",
+                            info.language_probability, code_switch_en_max, indic_sum, code_switch_indic_min, fallback_beam_size
+                        )
+                        try:
+                            fb_kwargs = dict(transcribe_kwargs)
+                            fb_kwargs["language"] = "hi"
+                            fb_kwargs["beam_size"] = fallback_beam_size
+                            fb_kwargs["best_of"] = fallback_beam_size
+                            fb_kwargs["multilingual"] = False
+                            if transcribe_initial_prompt:
+                                fb_kwargs["initial_prompt"] = transcribe_initial_prompt
+
+                            fb_segments, _ = model.transcribe(
+                                temp_path,
+                                **fb_kwargs
+                            )
+                            fb_parts = [s.text.strip() for s in fb_segments if s.text and s.text.strip()]
+                            fb_transcript = " ".join(fb_parts).strip()
+                            if fb_transcript:
+                                transcript = fb_transcript
+                                fallback_applied = True
+                                t_fb = time.perf_counter() - t_fb_start
+                                logger.info(
+                                    "[TIMING] Whisper fallback pass completed in %.3fs (beam_size=%d)",
+                                    t_fb, fallback_beam_size
+                                )
+                        except Exception as fb_err:
+                            logger.warning("Code-switching fallback pass failed: %s; retaining baseline transcript.", str(fb_err))
+            except Exception as e:
+                logger.error("Whisper transcription inference error: %s", str(e))
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to transcribe audio recording."
+                )
+        finally:
+            _transcribe_semaphore.release()
+
+        if not transcript:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="No audible speech detected in the audio file."
+            )
+
+        t_total = time.perf_counter() - t_start
+        logger.info(
+            "[TIMING] Total transcription processing time: %.3fs (whisper-local, %s, %d bytes, lang: %s, duration: %.1fs, fallback_applied: %s)",
+            t_total, format_key, total_size, detected_lang, whisper_duration, fallback_applied
+        )
+        return TranscribeResponse(
+            transcript=transcript,
+            detectedLanguage=detected_lang,
+            durationSeconds=whisper_duration,
+            provider="whisper-local",
+            isSimulated=False,
+            codeSwitchFallbackApplied=fallback_applied
+        )
+
+    else:
+        # Mock Provider
+        t_total = time.perf_counter() - t_start
+        transcript = f"[Simulated Speech Transcription]: Audio recording processed successfully ({duration:.1f}s)."
+        mock_lang = target_lang or "en"
+        logger.info(
+            "[TIMING] Total transcription processing time: %.3fs (mock provider, %s, %d bytes, simulated duration: %.1fs)",
+            t_total, format_key, total_size, duration
+        )
+        return TranscribeResponse(
+            transcript=transcript,
+            detectedLanguage=mock_lang,
+            durationSeconds=duration,
+            provider="mock",
+            isSimulated=True,
+            codeSwitchFallbackApplied=False
+        )
 
 @app.post("/transcribe", response_model=TranscribeResponse, status_code=status.HTTP_200_OK)
 async def transcribe_audio(
@@ -683,218 +979,17 @@ async def transcribe_audio(
         finally:
             temp_file.close()
 
-        # Enforce duration probe before any model inference or provider logic
-        duration = probe_audio_duration(temp_path, format_key)
-        if duration is None or duration <= 0:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Could not determine audio duration. The file may be corrupt or an unsupported audio stream."
-            )
-
-        if duration > max_duration:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Audio duration ({duration:.1f}s) exceeds the maximum allowed limit of {int(max_duration)}s (5 minutes)."
-            )
-
-        # Silence / inaudible detection
-        if check_audio_silence(temp_path, format_key):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="No audible speech detected in the audio file."
-            )
-
-        if stt_provider == "whisper-local":
-            acquired = _transcribe_semaphore.acquire(blocking=True, timeout=60)
-            if not acquired:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Transcription service is busy. Please try again later."
-                )
-            try:
-                try:
-                    model = get_whisper_model()
-                except Exception as e:
-                    logger.error("Error obtaining Whisper model: %s", str(e))
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="Speech transcription service unavailable: model initialization failed."
-                    )
-
-                try:
-                    beam_size_env = os.getenv("WHISPER_BEAM_SIZE", "5").strip()
-                    beam_size = int(beam_size_env) if beam_size_env.isdigit() and int(beam_size_env) > 0 else 5
-                except (ValueError, TypeError):
-                    beam_size = 5
-
-                vad_filter_env = os.getenv("WHISPER_VAD_FILTER", "true").strip().lower()
-                vad_filter = vad_filter_env in ("true", "1", "yes")
-
-                cond_prev_env = os.getenv("WHISPER_CONDITION_ON_PREVIOUS_TEXT", "false").strip().lower()
-                condition_on_previous_text = cond_prev_env in ("true", "1", "yes")
-
-                multilingual_env = os.getenv("WHISPER_MULTILINGUAL", "true").strip().lower()
-                multilingual_enabled = multilingual_env in ("true", "1", "yes")
-
-                # Multilingual code-switching configuration:
-                # When language is auto-detected (target_lang is None), enable multilingual segment re-detection
-                # and provide a conservative initial prompt with mixed-script examples (English, Hindi, Marathi)
-                # to prevent Whisper from forcing English words into Devanagari script.
-                # When an explicit language override is provided, preserve user selection and disable multilingual switching.
-                if target_lang is None:
-                    transcribe_multilingual = multilingual_enabled
-                    raw_initial_prompt = os.getenv("WHISPER_INITIAL_PROMPT", "English, हिन्दी, मराठी.").strip()
-                    transcribe_initial_prompt = raw_initial_prompt if raw_initial_prompt else None
-                else:
-                    transcribe_multilingual = False
-                    transcribe_initial_prompt = None
-
-                # Gated Indic code-switching fallback configuration:
-                # Triggers only when auto-detection is used, primary detected language is English (<= en_max),
-                # and substantial probability mass is distributed across Indic languages (>= indic_min).
-                code_switch_fallback_env = os.getenv("WHISPER_CODE_SWITCH_FALLBACK", "true").strip().lower()
-                code_switch_fallback_enabled = code_switch_fallback_env in ("true", "1", "yes")
-
-                try:
-                    code_switch_en_max = float(os.getenv("WHISPER_CODE_SWITCH_EN_MAX", "0.75").strip())
-                except (ValueError, TypeError):
-                    code_switch_en_max = 0.75
-
-                try:
-                    code_switch_indic_min = float(os.getenv("WHISPER_CODE_SWITCH_INDIC_MIN", "0.20").strip())
-                except (ValueError, TypeError):
-                    code_switch_indic_min = 0.20
-
-                try:
-                    fallback_beam_size = int(os.getenv("WHISPER_FALLBACK_BEAM_SIZE", "3").strip())
-                    if fallback_beam_size <= 1:
-                        logger.warning("WHISPER_FALLBACK_BEAM_SIZE=%d is not allowed (must be >= 2). Falling back to 3.", fallback_beam_size)
-                        fallback_beam_size = 3
-                except (ValueError, TypeError):
-                    fallback_beam_size = 3
-
-                indic_langs_env = os.getenv("WHISPER_INDIC_LANGUAGES", "hi,mr,ur,pa,gu,bn,sa,ta,te,kn,ml")
-                parsed_indic_langs = {lang.strip().lower() for lang in indic_langs_env.split(",") if lang.strip()}
-                indic_language_codes = parsed_indic_langs if parsed_indic_langs else DEFAULT_INDIC_LANGUAGES
-
-                try:
-                    transcribe_kwargs = {
-                        "task": "transcribe",
-                        "language": target_lang,
-                        "beam_size": beam_size,
-                        "vad_filter": vad_filter,
-                        "condition_on_previous_text": condition_on_previous_text,
-                        "multilingual": transcribe_multilingual,
-                    }
-                    if transcribe_initial_prompt:
-                        transcribe_kwargs["initial_prompt"] = transcribe_initial_prompt
-
-                    segments, info = model.transcribe(
-                        temp_path,
-                        **transcribe_kwargs
-                    )
-                    transcript_parts = []
-                    for segment in segments:
-                        if segment.text and segment.text.strip():
-                            transcript_parts.append(segment.text.strip())
-                    transcript = " ".join(transcript_parts).strip()
-                    detected_lang = info.language if hasattr(info, "language") and info.language else (target_lang or "en")
-                    whisper_duration = round(info.duration, 2) if hasattr(info, "duration") and info.duration else duration
-
-                    fallback_applied = False
-                    # Gated two-pass fallback for Indian multilingual code-switched speech:
-                    # When auto-detection is active, Whisper often locks into English (<|en|>) if the utterance
-                    # starts with English words, causing subsequent Hindi/Marathi words to be translated into English
-                    # rather than transcribed in original scripts. If primary detected language is 'en' with moderate
-                    # confidence (<= en_max) and significant Indic language probability mass (>= indic_min), re-decode
-                    # using Hindi conditioning (beam_size=3) to preserve Latin for English and Devanagari for Hindi/Marathi.
-                    if (
-                        code_switch_fallback_enabled
-                        and target_lang is None
-                        and getattr(info, "language", None) == "en"
-                        and isinstance(getattr(info, "language_probability", None), (int, float))
-                        and info.language_probability <= code_switch_en_max
-                    ):
-                        indic_sum = 0.0
-                        all_probs = getattr(info, "all_language_probs", None)
-                        if all_probs and isinstance(all_probs, (list, tuple, dict)):
-                            try:
-                                probs_dict = dict(all_probs) if not isinstance(all_probs, dict) else all_probs
-                                indic_sum = sum(
-                                    float(probs_dict.get(l, 0.0))
-                                    for l in indic_language_codes
-                                    if isinstance(probs_dict.get(l, 0.0), (int, float))
-                                )
-                            except Exception as e:
-                                logger.warning("Could not compute Indic language probability sum: %s", str(e))
-                                indic_sum = 0.0
-
-                        if indic_sum >= code_switch_indic_min:
-                            logger.info(
-                                "Code-switching gate triggered (P(en)=%.3f <= %.2f, Indic=%.3f >= %.2f). Running fallback pass with hi conditioning (beam_size=%d)...",
-                                info.language_probability, code_switch_en_max, indic_sum, code_switch_indic_min, fallback_beam_size
-                            )
-                            try:
-                                fb_kwargs = dict(transcribe_kwargs)
-                                fb_kwargs["language"] = "hi"
-                                fb_kwargs["beam_size"] = fallback_beam_size
-                                fb_kwargs["best_of"] = fallback_beam_size
-                                fb_kwargs["multilingual"] = False
-                                if transcribe_initial_prompt:
-                                    fb_kwargs["initial_prompt"] = transcribe_initial_prompt
-
-                                fb_segments, _ = model.transcribe(
-                                    temp_path,
-                                    **fb_kwargs
-                                )
-                                fb_parts = [s.text.strip() for s in fb_segments if s.text and s.text.strip()]
-                                fb_transcript = " ".join(fb_parts).strip()
-                                if fb_transcript:
-                                    transcript = fb_transcript
-                                    fallback_applied = True
-                                    logger.info("Code-switching fallback pass succeeded.")
-                            except Exception as fb_err:
-                                logger.warning("Code-switching fallback pass failed: %s; retaining baseline transcript.", str(fb_err))
-                except Exception as e:
-                    logger.error("Whisper transcription inference error: %s", str(e))
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="Failed to transcribe audio recording."
-                    )
-            finally:
-                _transcribe_semaphore.release()
-
-            if not transcript:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail="No audible speech detected in the audio file."
-                )
-
-            logger.info("Transcribed audio successfully with whisper-local (%s, %d bytes, lang: %s, duration: %.1fs, fallback_applied: %s)",
-                        format_key, total_size, detected_lang, whisper_duration, fallback_applied)
-            return TranscribeResponse(
-                transcript=transcript,
-                detectedLanguage=detected_lang,
-                durationSeconds=whisper_duration,
-                provider="whisper-local",
-                isSimulated=False,
-                codeSwitchFallbackApplied=fallback_applied
-            )
-
-        else:
-            # Mock Provider
-            transcript = f"[Simulated Speech Transcription]: Audio recording processed successfully ({duration:.1f}s)."
-            mock_lang = target_lang or "en"
-            logger.info("Processed audio with mock provider (%s, %d bytes, simulated duration: %.1fs)",
-                        format_key, total_size, duration)
-            return TranscribeResponse(
-                transcript=transcript,
-                detectedLanguage=mock_lang,
-                durationSeconds=duration,
-                provider="mock",
-                isSimulated=True,
-                codeSwitchFallbackApplied=False
-            )
+        # Offload synchronous CPU-intensive audio probe, silence check, and Whisper inference
+        # to a worker thread pool so the main FastAPI asyncio event loop never blocks
+        return await asyncio.to_thread(
+            _run_transcription_worker,
+            temp_path=temp_path,
+            format_key=format_key,
+            target_lang=target_lang,
+            total_size=total_size,
+            stt_provider=stt_provider,
+            max_duration=max_duration,
+        )
 
     finally:
         if temp_path and os.path.exists(temp_path):
@@ -977,17 +1072,26 @@ def generate_rag_answer(request: RagAnswerRequest):
         "contents": [{
             "role": "user",
             "parts": [{"text": json.dumps(prompt_data, ensure_ascii=False)}]
-        }]
+        }],
+        "generationConfig": {
+            "maxOutputTokens": 300,
+            "temperature": 0.3
+        }
     }
+    MAX_GEMINI_RETRIES = 3
     gemini_url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
         f"{GEMINI_MODEL}:generateContent"
     )
 
+    t_gemini_start = time.perf_counter()
     try:
-        with httpx.Client(timeout=45.0) as client:
+        gemini_timeout = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "60.0"))
+        with httpx.Client(timeout=gemini_timeout) as client:
             response = None
-            for attempt in range(2):
+            successful_attempt = 0
+            for attempt in range(MAX_GEMINI_RETRIES + 1):
+                successful_attempt = attempt + 1
                 response = client.post(
                     gemini_url,
                     headers={"x-goog-api-key": gemini_api_key},
@@ -996,21 +1100,43 @@ def generate_rag_answer(request: RagAnswerRequest):
                 if response.status_code == 200:
                     break
 
-                retryable = response.status_code == 503
-                if response.status_code == 429:
+                retryable = False
+                if response.status_code in (500, 502, 503, 504):
+                    retryable = True
+                elif response.status_code == 429:
                     error_text = response.text.lower()
                     retryable = not any(
                         marker in error_text
                         for marker in ("quota exceeded", "resource_exhausted", "perday")
                     )
-                if not retryable or attempt == 1:
+
+                if not retryable or attempt >= MAX_GEMINI_RETRIES:
                     break
 
+                # Backoff calculation: respect Retry-After or exponential backoff with jitter
+                delay = 1.5 * (2 ** attempt)
+                retry_after_hdr = None
+                if hasattr(response, "headers") and response.headers:
+                    retry_after_hdr = response.headers.get("retry-after") or response.headers.get("Retry-After")
+
+                if isinstance(retry_after_hdr, str) and retry_after_hdr.strip():
+                    try:
+                        parsed_delay = float(retry_after_hdr.strip())
+                        delay = min(max(parsed_delay, 0.5), 10.0)
+                    except (ValueError, TypeError):
+                        pass
+                else:
+                    if attempt > 0:
+                        delay += random.uniform(0.1, 0.5)
+
                 logger.warning(
-                    "Gemini returned transient HTTP %d; retrying once.",
-                    response.status_code
+                    "Gemini returned transient HTTP %d (attempt %d/%d); retrying in %.2fs...",
+                    response.status_code,
+                    attempt + 1,
+                    MAX_GEMINI_RETRIES,
+                    delay
                 )
-                time.sleep(1.5)
+                time.sleep(delay)
 
         if response is None:
             raise HTTPException(
@@ -1066,6 +1192,12 @@ def generate_rag_answer(request: RagAnswerRequest):
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Gemini returned an empty answer."
             )
+
+        t_gemini = time.perf_counter() - t_gemini_start
+        logger.info(
+            "[TIMING] Gemini RAG response generated in %.3fs (attempts=%d, answer_len=%d)",
+            t_gemini, successful_attempt, len(answer_text)
+        )
 
         return RagAnswerResponse(answer=answer_text, provider="gemini", model=GEMINI_MODEL)
     except HTTPException:
