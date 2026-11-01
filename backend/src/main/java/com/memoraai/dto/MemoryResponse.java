@@ -1,6 +1,7 @@
 package com.memoraai.dto;
 
 import com.memoraai.entity.Memory;
+import com.memoraai.entity.User;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -14,6 +15,7 @@ public class MemoryResponse {
     private String tags;
     private Instant createdAt;
     private Instant updatedAt;
+    private MemoryContributorResponse contributor;
 
     public MemoryResponse() {
     }
@@ -38,6 +40,15 @@ public class MemoryResponse {
                 memory.getCreatedAt(),
                 memory.getUpdatedAt()
         );
+    }
+
+    public static MemoryResponse fromEntity(Memory memory, User contributor) {
+        MemoryResponse response = fromEntity(memory);
+        if (contributor != null) {
+            response.setContributor(new MemoryContributorResponse(
+                    contributor.getId(), contributor.getName(), contributor.getEmail()));
+        }
+        return response;
     }
 
     public UUID getId() {
@@ -94,5 +105,13 @@ public class MemoryResponse {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public MemoryContributorResponse getContributor() {
+        return contributor;
+    }
+
+    public void setContributor(MemoryContributorResponse contributor) {
+        this.contributor = contributor;
     }
 }

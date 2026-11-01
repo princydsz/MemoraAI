@@ -6,6 +6,7 @@ import com.memoraai.entity.MemoryMedia;
 import com.memoraai.entity.User;
 import com.memoraai.exception.InvalidMediaException;
 import com.memoraai.exception.ResourceNotFoundException;
+import com.memoraai.entity.CareCircleCapability;
 import com.memoraai.repository.MemoryMediaRepository;
 import com.memoraai.repository.MemoryRepository;
 import com.memoraai.repository.UserRepository;
@@ -15,6 +16,7 @@ import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -41,6 +43,7 @@ public class MediaService {
     private final MemoryMediaRepository memoryMediaRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final CareCircleAuthorizationService authorizationService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -49,11 +52,13 @@ public class MediaService {
             MemoryRepository memoryRepository,
             MemoryMediaRepository memoryMediaRepository,
             UserRepository userRepository,
-            StorageService storageService) {
+            StorageService storageService,
+            CareCircleAuthorizationService authorizationService) {
         this.memoryRepository = memoryRepository;
         this.memoryMediaRepository = memoryMediaRepository;
         this.userRepository = userRepository;
         this.storageService = storageService;
+        this.authorizationService = authorizationService;
     }
 
     private User getAuthenticatedUser(String email) {
@@ -198,6 +203,136 @@ public class MediaService {
         MemoryMedia media = memoryMediaRepository.findByIdAndMemoryIdAndUserId(mediaId, memoryId, user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Media not found with id: " + mediaId));
 
+        storageService.deleteObject(media.getS3Key());
+        memoryMediaRepository.delete(media);
+    }
+
+    private User requirePatientMediaAccess(UUID patientId, User actor, CareCircleCapability capability) {
+        authorizationService.requirePatientAccess(actor.getId(), patientId);
+        if (!actor.getId().equals(patientId)) {
+            authorizationService.requireCapability(actor.getId(), patientId, capability);
+        }
+        return userRepository.findById(patientId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        CareCircleAuthorizationService.PATIENT_ACCESS_NOT_FOUND));
+    }
+
+    private Memory requirePatientMemory(UUID patientId, UUID memoryId) {
+        return memoryRepository.findByIdAndUserId(memoryId, patientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Memory not found with id: " + memoryId));
+    }
+
+    private void requireFamilyContributionMemory(Memory memory, User actor) {
+        if (actor.getId().equals(memory.getUser().getId())) {
+            return;
+        }
+        if (memory.getContributedBy() == null
+                || !memory.getContributedBy().getId().equals(actor.getId())) {
+            throw new AccessDeniedException(CareCircleAuthorizationService.INSUFFICIENT_PERMISSION);
+        }
+    }
+
+    @Transactional
+    public List<MemoryMediaResponse> uploadForPatient(UUID patientId, UUID memoryId,
+                                                       List<MultipartFile> files, String userEmail) {
+        User actor = getAuthenticatedUser(userEmail);
+        requirePatientMediaAccess(patientId, actor, CareCircleCapability.CONTRIBUTE_MEMORIES);
+        if (files == null || files.isEmpty()) {
+            throw new InvalidMediaException("No media files provided for upload.");
+        }
+
+        Memory memory = entityManager.find(Memory.class, memoryId, LockModeType.PESSIMISTIC_WRITE);
+        if (memory == null || !memory.getUser().getId().equals(patientId)) {
+            throw new ResourceNotFoundException("Memory not found with id: " + memoryId);
+        }
+        requireFamilyContributionMemory(memory, actor);
+
+        long currentCount = memoryMediaRepository.countByMemoryId(memoryId);
+        if (currentCount + files.size() > MAX_MEDIA_PER_MEMORY) {
+            throw new InvalidMediaException(String.format(
+                    "Upload exceeds maximum limit of %d media files per memory. Current: %d, Attempted: %d.",
+                    MAX_MEDIA_PER_MEMORY, currentCount, files.size()));
+        }
+        for (MultipartFile file : files) {
+            storageService.validateMedia(file);
+        }
+
+        List<StorageService.UploadResult> uploadedResults = new ArrayList<>();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == TransactionSynchronization.STATUS_ROLLED_BACK) {
+                        for (StorageService.UploadResult result : uploadedResults) {
+                            try {
+                                storageService.deleteObject(result.s3Key());
+                            } catch (Exception cleanupException) {
+                                log.error("Failed to clean up MinIO object '{}' after rollback: {}",
+                                        result.s3Key(), cleanupException.getMessage());
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        try {
+            for (MultipartFile file : files) {
+                uploadedResults.add(storageService.uploadMedia(actor.getId(), memoryId, file));
+            }
+            List<MemoryMedia> saved = new ArrayList<>();
+            for (StorageService.UploadResult result : uploadedResults) {
+                saved.add(memoryMediaRepository.save(new MemoryMedia(
+                        memory, actor, result.fileName(), result.contentType(),
+                        result.fileSize(), result.s3Key())));
+            }
+            return saved.stream().map(MemoryMediaResponse::fromEntity).collect(Collectors.toList());
+        } catch (Exception ex) {
+            for (StorageService.UploadResult result : uploadedResults) {
+                try {
+                    storageService.deleteObject(result.s3Key());
+                } catch (Exception cleanupException) {
+                    log.error("Failed to clean up MinIO object '{}' after upload failure: {}",
+                            result.s3Key(), cleanupException.getMessage());
+                }
+            }
+            throw ex;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<MemoryMediaResponse> getForPatient(UUID patientId, UUID memoryId, String userEmail) {
+        User actor = getAuthenticatedUser(userEmail);
+        requirePatientMediaAccess(patientId, actor, CareCircleCapability.VIEW_MEMORIES);
+        requirePatientMemory(patientId, memoryId);
+        return memoryMediaRepository.findAllByMemoryIdOrderByCreatedAtAsc(memoryId).stream()
+                .map(MemoryMediaResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public MemoryMedia getForDownloadForPatient(UUID patientId, UUID memoryId, UUID mediaId,
+                                                String userEmail) {
+        User actor = getAuthenticatedUser(userEmail);
+        requirePatientMediaAccess(patientId, actor, CareCircleCapability.VIEW_MEMORIES);
+        requirePatientMemory(patientId, memoryId);
+        return memoryMediaRepository.findById(mediaId)
+                .filter(media -> media.getMemory().getId().equals(memoryId))
+                .orElseThrow(() -> new ResourceNotFoundException("Media not found with id: " + mediaId));
+    }
+
+    @Transactional
+    public void deleteForPatient(UUID patientId, UUID memoryId, UUID mediaId, String userEmail) {
+        User actor = getAuthenticatedUser(userEmail);
+        requirePatientMediaAccess(patientId, actor, CareCircleCapability.CONTRIBUTE_MEMORIES);
+        Memory memory = requirePatientMemory(patientId, memoryId);
+        requireFamilyContributionMemory(memory, actor);
+        MemoryMedia media = memoryMediaRepository.findById(mediaId)
+                .filter(candidate -> candidate.getMemory().getId().equals(memoryId))
+                .orElseThrow(() -> new ResourceNotFoundException("Media not found with id: " + mediaId));
+        if (!actor.getId().equals(patientId) && !media.getUser().getId().equals(actor.getId())) {
+            throw new AccessDeniedException(CareCircleAuthorizationService.INSUFFICIENT_PERMISSION);
+        }
         storageService.deleteObject(media.getS3Key());
         memoryMediaRepository.delete(media);
     }

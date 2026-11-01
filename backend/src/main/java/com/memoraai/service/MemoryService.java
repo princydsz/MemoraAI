@@ -8,6 +8,7 @@ import com.memoraai.dto.EntityExtractionResponse;
 import com.memoraai.dto.GraphReindexResponse;
 import com.memoraai.dto.MemoryGraphResponse;
 import com.memoraai.dto.MemoryResponse;
+import com.memoraai.dto.MemoryPageResponse;
 import com.memoraai.dto.MemorySearchResponse;
 import com.memoraai.dto.RagAnswerResponse;
 import com.memoraai.dto.ReindexResponse;
@@ -16,6 +17,7 @@ import com.memoraai.dto.UpdateMemoryRequest;
 import com.memoraai.entity.Memory;
 import com.memoraai.entity.MemoryMedia;
 import com.memoraai.entity.User;
+import com.memoraai.entity.CareCircleCapability;
 import com.memoraai.exception.GraphServiceException;
 import com.memoraai.exception.ResourceNotFoundException;
 import com.memoraai.repository.MemoryMediaRepository;
@@ -26,6 +28,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,8 +40,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,6 +62,7 @@ public class MemoryService {
     private final MemoryMediaRepository memoryMediaRepository;
     private final StorageService storageService;
     private final GraphStoreService graphStoreService;
+    private final CareCircleAuthorizationService authorizationService;
     private final ExecutorService backgroundTaskExecutor = Executors.newFixedThreadPool(4);
 
     public MemoryService(MemoryRepository memoryRepository,
@@ -63,7 +71,8 @@ public class MemoryService {
                          VectorStoreService vectorStoreService,
                          MemoryMediaRepository memoryMediaRepository,
                          StorageService storageService,
-                         GraphStoreService graphStoreService) {
+                         GraphStoreService graphStoreService,
+                         CareCircleAuthorizationService authorizationService) {
         this.memoryRepository = memoryRepository;
         this.userRepository = userRepository;
         this.aiService = aiService;
@@ -71,6 +80,7 @@ public class MemoryService {
         this.memoryMediaRepository = memoryMediaRepository;
         this.storageService = storageService;
         this.graphStoreService = graphStoreService;
+        this.authorizationService = authorizationService;
     }
 
     private User getAuthenticatedUser(String email) {
@@ -96,7 +106,12 @@ public class MemoryService {
         long tDb = System.currentTimeMillis() - tDbStart;
 
         long tVectorStart = System.currentTimeMillis();
-        vectorStoreService.indexMemory(savedMemory);
+        try {
+            vectorStoreService.indexMemory(savedMemory);
+        } catch (RuntimeException ex) {
+            log.warn("Memory {} was created but vector indexing failed: {}",
+                    savedMemory.getId(), ex.getMessage());
+        }
         long tVector = System.currentTimeMillis() - tVectorStart;
 
         registerAfterCommitSync(
@@ -127,6 +142,150 @@ public class MemoryService {
                 .collect(Collectors.toList());
     }
 
+    private User requirePatient(UUID patientId, User actor, CareCircleCapability capability) {
+        authorizationService.requirePatientAccess(actor.getId(), patientId);
+        if (!actor.getId().equals(patientId)) {
+            authorizationService.requireCapability(actor.getId(), patientId, capability);
+        }
+        return userRepository.findById(patientId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        CareCircleAuthorizationService.PATIENT_ACCESS_NOT_FOUND));
+    }
+
+    private Memory requirePatientMemory(UUID patientId, UUID memoryId) {
+        return memoryRepository.findByIdAndUserId(memoryId, patientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Memory not found with id: " + memoryId));
+    }
+
+    private void requireFamilyContributionOwner(Memory memory, User actor) {
+        if (actor.getId().equals(memory.getUser().getId())) {
+            return;
+        }
+        if (memory.getContributedBy() == null
+                || !memory.getContributedBy().getId().equals(actor.getId())) {
+            throw new AccessDeniedException(
+                    CareCircleAuthorizationService.INSUFFICIENT_PERMISSION);
+        }
+    }
+
+    @Transactional
+    public MemoryResponse createForPatient(UUID patientId, CreateMemoryRequest request, String actorEmail) {
+        User actor = getAuthenticatedUser(actorEmail);
+        User patient = requirePatient(patientId, actor, CareCircleCapability.CONTRIBUTE_MEMORIES);
+
+        Memory memory = actor.getId().equals(patientId)
+                ? new Memory(patient, request.getTitle().trim(), request.getContent().trim(),
+                        request.getCategory() != null ? request.getCategory().trim() : null,
+                        request.getTags() != null ? request.getTags().trim() : null)
+                : new Memory(patient, actor, request.getTitle().trim(), request.getContent().trim(),
+                        request.getCategory() != null ? request.getCategory().trim() : null,
+                        request.getTags() != null ? request.getTags().trim() : null);
+
+        Memory saved = memoryRepository.save(memory);
+        try {
+            vectorStoreService.indexMemory(saved);
+        } catch (RuntimeException ex) {
+            log.warn("Memory {} was contributed but vector indexing failed: {}",
+                    saved.getId(), ex.getMessage());
+        }
+        registerAfterCommitSync(
+                patient.getId(), saved.getId(), saved.getTitle(), saved.getCategory(),
+                saved.getTags(), saved.getContent(), saved.getCreatedAt(), saved.getUpdatedAt());
+        return MemoryResponse.fromEntity(saved, actor.getId().equals(patientId) ? null : actor);
+    }
+
+    @Transactional(readOnly = true)
+    public MemoryPageResponse listForPatient(UUID patientId, int page, int size, String actorEmail) {
+        User actor = getAuthenticatedUser(actorEmail);
+        requirePatient(patientId, actor, CareCircleCapability.VIEW_MEMORIES);
+        if (page < 0) {
+            throw new IllegalArgumentException("Page number must not be negative");
+        }
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException("Page size must be between 1 and 100");
+        }
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Memory> result = memoryRepository.findAllByUserIdOrderByCreatedAtDesc(patientId, pageable);
+        Map<UUID, User> contributorIds = new HashMap<>();
+        Set<UUID> ids = new HashSet<>();
+        result.getContent().forEach(memory -> {
+            if (memory.getContributedBy() != null) {
+                ids.add(memory.getContributedBy().getId());
+            }
+        });
+        if (!ids.isEmpty()) {
+            userRepository.findAllById(ids).forEach(user -> contributorIds.put(user.getId(), user));
+        }
+
+        List<MemoryResponse> content = result.getContent().stream()
+                .map(memory -> {
+                    User contributor = memory.getContributedBy() == null ? null
+                            : contributorIds.get(memory.getContributedBy().getId());
+                    return MemoryResponse.fromEntity(memory, contributor);
+                })
+                .toList();
+        return new MemoryPageResponse(content, result.getNumber(), result.getSize(),
+                result.getTotalElements(), result.getTotalPages());
+    }
+
+    @Transactional(readOnly = true)
+    public MemoryResponse getForPatient(UUID patientId, UUID memoryId, String actorEmail) {
+        User actor = getAuthenticatedUser(actorEmail);
+        requirePatient(patientId, actor, CareCircleCapability.VIEW_MEMORIES);
+        Memory memory = requirePatientMemory(patientId, memoryId);
+        User contributor = memory.getContributedBy() == null ? null
+                : userRepository.findById(memory.getContributedBy().getId()).orElse(null);
+        return MemoryResponse.fromEntity(memory, contributor);
+    }
+
+    @Transactional
+    public MemoryResponse updateForPatient(UUID patientId, UUID memoryId,
+                                           UpdateMemoryRequest request, String actorEmail) {
+        User actor = getAuthenticatedUser(actorEmail);
+        requirePatient(patientId, actor, CareCircleCapability.CONTRIBUTE_MEMORIES);
+        Memory memory = requirePatientMemory(patientId, memoryId);
+        requireFamilyContributionOwner(memory, actor);
+
+        memory.setTitle(request.getTitle().trim());
+        memory.setContent(request.getContent().trim());
+        memory.setCategory(request.getCategory() != null ? request.getCategory().trim() : null);
+        memory.setTags(request.getTags() != null ? request.getTags().trim() : null);
+        Memory updated = memoryRepository.save(memory);
+        try {
+            vectorStoreService.indexMemory(updated);
+        } catch (RuntimeException ex) {
+            log.warn("Memory {} was updated but vector indexing failed: {}",
+                    updated.getId(), ex.getMessage());
+        }
+        registerAfterCommitSync(
+                updated.getUser().getId(), updated.getId(), updated.getTitle(),
+                updated.getCategory(), updated.getTags(), updated.getContent(),
+                updated.getCreatedAt(), updated.getUpdatedAt());
+        User contributor = updated.getContributedBy() == null ? null : updated.getContributedBy();
+        return MemoryResponse.fromEntity(updated, contributor);
+    }
+
+    @Transactional
+    public void deleteForPatient(UUID patientId, UUID memoryId, String actorEmail) {
+        User actor = getAuthenticatedUser(actorEmail);
+        requirePatient(patientId, actor, CareCircleCapability.CONTRIBUTE_MEMORIES);
+        Memory memory = requirePatientMemory(patientId, memoryId);
+        requireFamilyContributionOwner(memory, actor);
+
+        for (MemoryMedia media : memoryMediaRepository.findAllByMemoryId(memoryId)) {
+            storageService.deleteObject(media.getS3Key());
+        }
+        memoryRepository.delete(memory);
+        try {
+            vectorStoreService.deleteMemoryIndex(memoryId);
+        } catch (RuntimeException ex) {
+            log.warn("Memory {} was deleted but vector index cleanup failed: {}",
+                    memoryId, ex.getMessage());
+        }
+        registerAfterCommitDelete(patientId, memoryId);
+    }
+
     @Transactional(readOnly = true)
     public MemoryResponse getMemory(UUID memoryId, String userEmail) {
         User user = getAuthenticatedUser(userEmail);
@@ -150,7 +309,12 @@ public class MemoryService {
         memory.setTags(request.getTags() != null ? request.getTags().trim() : null);
 
         Memory updatedMemory = memoryRepository.save(memory);
-        vectorStoreService.indexMemory(updatedMemory);
+        try {
+            vectorStoreService.indexMemory(updatedMemory);
+        } catch (RuntimeException ex) {
+            log.warn("Memory {} was updated but vector indexing failed: {}",
+                    updatedMemory.getId(), ex.getMessage());
+        }
         registerAfterCommitSync(
                 user.getId(),
                 updatedMemory.getId(),
@@ -182,7 +346,12 @@ public class MemoryService {
         }
 
         memoryRepository.delete(memory);
-        vectorStoreService.deleteMemoryIndex(memoryId);
+        try {
+            vectorStoreService.deleteMemoryIndex(memoryId);
+        } catch (RuntimeException ex) {
+            log.warn("Memory {} was deleted but vector index cleanup failed: {}",
+                    memoryId, ex.getMessage());
+        }
         registerAfterCommitDelete(userId, memoryIdToDelete);
     }
 

@@ -19,5 +19,7 @@ public interface MemoryMediaRepository extends JpaRepository<MemoryMedia, UUID> 
 
     List<MemoryMedia> findAllByMemoryId(UUID memoryId);
 
+    List<MemoryMedia> findAllByMemoryIdOrderByCreatedAtAsc(UUID memoryId);
+
     Optional<MemoryMedia> findByIdAndMemoryIdAndUserId(UUID id, UUID memoryId, UUID userId);
 }

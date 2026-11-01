@@ -14,6 +14,8 @@ import com.memoraai.entity.Role;
 import com.memoraai.entity.User;
 import com.memoraai.repository.CareCircleInvitationRepository;
 import com.memoraai.repository.CareCircleMembershipRepository;
+import com.memoraai.repository.MemoryMediaRepository;
+import com.memoraai.repository.MemoryRepository;
 import com.memoraai.repository.UserRepository;
 import com.memoraai.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,6 +44,8 @@ class FamilyPhase2IntegrationTest {
     @Autowired UserRepository userRepository;
     @Autowired CareCircleMembershipRepository membershipRepository;
     @Autowired CareCircleInvitationRepository invitationRepository;
+    @Autowired MemoryMediaRepository memoryMediaRepository;
+    @Autowired MemoryRepository memoryRepository;
     @Autowired PasswordEncoder passwordEncoder;
     @Autowired JwtService jwtService;
 
@@ -54,6 +58,8 @@ class FamilyPhase2IntegrationTest {
 
     @BeforeEach
     void setUp() {
+        memoryMediaRepository.deleteAll();
+        memoryRepository.deleteAll();
         invitationRepository.deleteAll();
         membershipRepository.deleteAll();
         userRepository.deleteAll();

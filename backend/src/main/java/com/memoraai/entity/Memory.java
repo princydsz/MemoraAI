@@ -17,6 +17,10 @@ public class Memory {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contributed_by_user_id")
+    private User contributedBy;
+
     @Column(name = "title", nullable = false)
     private String title;
 
@@ -40,6 +44,15 @@ public class Memory {
 
     public Memory(User user, String title, String content, String category, String tags) {
         this.user = user;
+        this.title = title;
+        this.content = content;
+        this.category = category;
+        this.tags = tags;
+    }
+
+    public Memory(User user, User contributedBy, String title, String content, String category, String tags) {
+        this.user = user;
+        this.contributedBy = contributedBy;
         this.title = title;
         this.content = content;
         this.category = category;
@@ -72,6 +85,14 @@ public class Memory {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    public User getContributedBy() {
+        return contributedBy;
+    }
+
+    public void setContributedBy(User contributedBy) {
+        this.contributedBy = contributedBy;
     }
 
     public String getTitle() {
