@@ -1,6 +1,11 @@
 server:
   port: ${BACKEND_PORT:8080}
 
+memora:
+  application:
+    # Calendar dates and the default completion date use this explicit timezone.
+    zone-id: ${MEMORA_TIME_ZONE:UTC}
+
 spring:
   application:
     name: memoraai-backend

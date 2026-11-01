@@ -1,6 +1,10 @@
 server:
   port: 8081
 
+memora:
+  application:
+    zone-id: UTC
+
 spring:
   application:
     name: memoraai-backend-test
