@@ -16,6 +16,8 @@ public interface RoutineActivityRepository extends JpaRepository<RoutineActivity
             UUID patientUserId);
     Optional<RoutineActivity> findByIdAndPatientUserId(UUID id, UUID patientUserId);
 
+    List<RoutineActivity> findByActiveTrue();
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from RoutineActivity a where a.id = :id and a.patientUserId = :patientUserId")
     Optional<RoutineActivity> findByIdAndPatientUserIdForUpdate(

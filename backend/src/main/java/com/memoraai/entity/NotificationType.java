@@ -3,5 +3,7 @@ package com.memoraai.entity;
 public enum NotificationType {
     MEMBER_JOINED,
     INVITATION_REDEEMED,
-    MEMBER_REMOVED
+    MEMBER_REMOVED,
+    ROUTINE_REMINDER,
+    APPOINTMENT_REMINDER
 }

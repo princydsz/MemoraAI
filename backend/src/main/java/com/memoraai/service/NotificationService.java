@@ -41,6 +41,12 @@ public class NotificationService {
                                            String title, String message,
                                            UUID relatedEntityId, String relatedEntityType,
                                            String dedupeKey) {
+        if (dedupeKey != null) {
+            Notification existing = notificationRepository.findByDedupeKey(dedupeKey).orElse(null);
+            if (existing != null) {
+                return existing;
+            }
+        }
         Notification notification = new Notification(
                 recipientUserId, patientUserId, actorUserId, type, title, message,
                 relatedEntityId, relatedEntityType, dedupeKey);

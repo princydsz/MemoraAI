@@ -9,11 +9,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface AppointmentRepository extends JpaRepository<PatientAppointment, UUID> {
     Optional<PatientAppointment> findByIdAndPatientUserId(UUID id, UUID patientUserId);
+
+    List<PatientAppointment> findByStatus(AppointmentStatus status);
 
     @Query("""
             select a from PatientAppointment a

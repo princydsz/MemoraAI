@@ -4,6 +4,8 @@ server:
 memora:
   application:
     zone-id: UTC
+  reminders:
+    enabled: false
 
 spring:
   application:

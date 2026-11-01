@@ -13,6 +13,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
+    Optional<Notification> findByDedupeKey(String dedupeKey);
+
     @Query("""
             select n from Notification n
             where n.recipientUserId = :recipientId

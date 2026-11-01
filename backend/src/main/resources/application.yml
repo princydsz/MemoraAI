@@ -5,6 +5,13 @@ memora:
   application:
     # Calendar dates and the default completion date use this explicit timezone.
     zone-id: ${MEMORA_TIME_ZONE:UTC}
+  reminders:
+    enabled: ${MEMORA_REMINDERS_ENABLED:true}
+    cron: ${MEMORA_REMINDERS_CRON:0 * * * * *}
+    routine-window-seconds: ${MEMORA_ROUTINE_REMINDER_WINDOW_SECONDS:300}
+    appointment-window-seconds: ${MEMORA_APPOINTMENT_REMINDER_WINDOW_SECONDS:300}
+    appointment-intervals-minutes: ${MEMORA_APPOINTMENT_REMINDER_INTERVALS:1440,60}
+    max-retry-attempts: ${MEMORA_REMINDER_MAX_RETRY_ATTEMPTS:5}
 
 spring:
   application:

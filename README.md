@@ -100,6 +100,20 @@ MemoraAI uses a resilient multi-service architecture orchestrated via Docker Com
    ```
 2. Verify development environment settings. By default, MemoraAI runs in **DEMO MODE** (`DEMO_MODE=true`, `LLM_PROVIDER=mock`), which does not require external API keys. To use live Google Gemini models, set `LLM_PROVIDER=gemini` and provide a valid `GEMINI_API_KEY`.
 
+### Automated Reminder Configuration
+
+Phase 7 reminder scheduling is enabled by default. The following environment variables are supported:
+
+- `MEMORA_TIME_ZONE`: fallback application timezone (default `UTC`).
+- `MEMORA_REMINDERS_ENABLED`: enable or disable scheduled reminder generation (default `true`).
+- `MEMORA_REMINDERS_CRON`: reminder job cron expression (default every minute).
+- `MEMORA_ROUTINE_REMINDER_WINDOW_SECONDS`: routine reminder delivery window (default `300` seconds).
+- `MEMORA_APPOINTMENT_REMINDER_WINDOW_SECONDS`: appointment reminder delivery window (default `300` seconds).
+- `MEMORA_APPOINTMENT_REMINDER_INTERVALS`: comma-separated appointment lead times in minutes (default `1440,60`).
+- `MEMORA_REMINDER_MAX_RETRY_ATTEMPTS`: maximum persisted delivery attempts (default `5`).
+
+Patients may also store an IANA timezone in `users.timezone`; invalid or missing values fall back to `MEMORA_TIME_ZONE`.
+
 ---
 
 ## 🐳 Starting the Application with Docker
