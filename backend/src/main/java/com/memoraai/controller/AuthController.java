@@ -4,6 +4,7 @@ import com.memoraai.dto.AuthResponse;
 import com.memoraai.dto.LoginRequest;
 import com.memoraai.dto.RegisterRequest;
 import com.memoraai.dto.UserResponse;
+import com.memoraai.dto.UpdateTimezoneRequest;
 import com.memoraai.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -38,5 +39,12 @@ public class AuthController {
     public ResponseEntity<UserResponse> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
         UserResponse response = authService.getCurrentUser(userDetails.getUsername());
         return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/me/timezone")
+    public ResponseEntity<UserResponse> updateTimezone(
+            @Valid @RequestBody UpdateTimezoneRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(authService.updateTimezone(request, userDetails.getUsername()));
     }
 }

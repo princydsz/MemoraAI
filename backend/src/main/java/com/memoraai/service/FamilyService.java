@@ -437,6 +437,30 @@ public class FamilyService {
                 "membership:" + membership.getId() + ":removed");
     }
 
+    @Transactional(readOnly = true)
+    public List<InvitationResponse> getPendingInvitations(UUID patientId, String actorEmail) {
+        User actor = getAuthenticatedUser(actorEmail);
+        getPatient(patientId);
+        requireInvitationManager(actor, patientId);
+        Instant now = Instant.now();
+        return careCircleInvitationRepository
+                .findAllByPatientUserIdOrderByCreatedAtDesc(patientId)
+                .stream()
+                .filter(invitation -> invitation.effectiveStatus(now) == InvitationStatus.PENDING)
+                .map(invitation -> InvitationResponse.fromEntity(invitation, now, null))
+                .toList();
+    }
+
+    @Transactional
+    public void leaveCareCircle(UUID patientId, String memberEmail) {
+        User member = getAuthenticatedUser(memberEmail);
+        getPatient(patientId);
+        if (member.getId().equals(patientId)) {
+            throw new IllegalArgumentException("The patient cannot leave their own Care Circle");
+        }
+        revokeMember(patientId, member.getId(), memberEmail);
+    }
+
     @Transactional
     public InvitationResponse revokeInvitation(UUID patientId, UUID invitationId, String actorEmail) {
         User actor = getAuthenticatedUser(actorEmail);

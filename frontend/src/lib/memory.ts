@@ -1,5 +1,5 @@
 import type { CreateMemoryData, Memory, UpdateMemoryData } from '../types/memory';
-import { authenticatedFetch } from './auth';
+import { authenticatedFetch } from './auth.ts';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 export const ASK_AI_TIMEOUT_MS = 25000; // 25 seconds timeout for Ask AI
@@ -38,6 +38,50 @@ export async function getMemoriesApi(): Promise<Memory[]> {
   });
 
   return parseJsonResponse<Memory[]>(response, 'Failed to fetch memories');
+}
+
+export async function getPatientMemoriesApi(patientId: string, page = 0, size = 20): Promise<import('../types/memory').Memory[]> {
+  const response = await authenticatedFetch(
+    `${API_BASE_URL}/api/family/patients/${patientId}/memories?page=${page}&size=${size}`,
+    { method: 'GET', headers: { Accept: 'application/json' } }
+  );
+  const result = await parseJsonResponse<{ content: Memory[] }>(response, 'Failed to fetch patient memories');
+  return result.content || [];
+}
+
+export async function createPatientMemoryApi(
+  patientId: string,
+  data: CreateMemoryData
+): Promise<Memory> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/family/patients/${patientId}/memories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return parseJsonResponse<Memory>(response, 'Failed to create patient memory');
+}
+
+export async function updatePatientMemoryApi(
+  patientId: string,
+  id: string,
+  data: UpdateMemoryData
+): Promise<Memory> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/family/patients/${patientId}/memories/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return parseJsonResponse<Memory>(response, 'Failed to update patient memory');
+}
+
+export async function deletePatientMemoryApi(patientId: string, id: string): Promise<void> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/family/patients/${patientId}/memories/${id}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    await parseJsonResponse<void>(response, 'Failed to delete patient memory');
+  }
 }
 
 export async function getMemoryApi(id: string): Promise<Memory> {

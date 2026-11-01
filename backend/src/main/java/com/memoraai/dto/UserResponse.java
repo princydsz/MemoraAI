@@ -12,6 +12,7 @@ public class UserResponse {
     private String name;
     private String email;
     private Role role;
+    private String timezone;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -27,12 +28,23 @@ public class UserResponse {
         this.updatedAt = updatedAt;
     }
 
+    public UserResponse(UUID id, String name, String email, Role role, String timezone, Instant createdAt, Instant updatedAt) {
+        this.id = id;
+        this.name = name;
+        this.email = email;
+        this.role = role;
+        this.timezone = timezone;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
     public static UserResponse fromEntity(User user) {
         return new UserResponse(
                 user.getId(),
                 user.getName(),
                 user.getEmail(),
                 user.getRole(),
+                user.getTimezone(),
                 user.getCreatedAt(),
                 user.getUpdatedAt()
         );
@@ -64,6 +76,10 @@ public class UserResponse {
 
     public Role getRole() {
         return role;
+    }
+
+    public String getTimezone() {
+        return timezone;
     }
 
     public void setRole(Role role) {

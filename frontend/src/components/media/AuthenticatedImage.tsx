@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { fetchMediaBlobApi } from '../../lib/media';
+import { fetchMediaBlobApi, fetchPatientMediaBlobApi } from '../../lib/media';
 
 interface AuthenticatedImageProps {
   memoryId: string;
+  patientId?: string;
   mediaId: string;
   alt: string;
   style?: React.CSSProperties;
@@ -14,6 +15,7 @@ interface AuthenticatedImageProps {
 
 export default function AuthenticatedImage({
   memoryId,
+  patientId,
   mediaId,
   alt,
   style,
@@ -30,7 +32,9 @@ export default function AuthenticatedImage({
     setIsLoading(true);
     setHasError(false);
 
-    fetchMediaBlobApi(memoryId, mediaId)
+    (patientId
+      ? fetchPatientMediaBlobApi(patientId, memoryId, mediaId)
+      : fetchMediaBlobApi(memoryId, mediaId))
       .then((blob) => {
         if (!isCurrent) return;
         createdUrl = URL.createObjectURL(blob);

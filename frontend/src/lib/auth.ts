@@ -322,3 +322,16 @@ export async function getMeApi(token: string): Promise<User> {
 
   return body as User;
 }
+
+export async function updateTimezoneApi(timezone: string): Promise<User> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/auth/me/timezone`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ timezone }),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(body?.message || body?.error || `Failed to update timezone (HTTP ${response.status}).`);
+  }
+  return body as User;
+}

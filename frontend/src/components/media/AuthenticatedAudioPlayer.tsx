@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { fetchMediaBlobApi, formatFileSize } from '../../lib/media';
+import { fetchMediaBlobApi, fetchPatientMediaBlobApi, formatFileSize } from '../../lib/media';
 
 export interface AuthenticatedAudioPlayerProps {
   memoryId: string;
+  patientId?: string;
   mediaId: string;
   fileName?: string;
   fileSize?: number;
@@ -14,6 +15,7 @@ export interface AuthenticatedAudioPlayerProps {
 
 export default function AuthenticatedAudioPlayer({
   memoryId,
+  patientId,
   mediaId,
   fileName,
   fileSize,
@@ -34,7 +36,9 @@ export default function AuthenticatedAudioPlayer({
     setHasError(false);
     setErrorMessage(null);
 
-    fetchMediaBlobApi(memoryId, mediaId)
+    (patientId
+      ? fetchPatientMediaBlobApi(patientId, memoryId, mediaId)
+      : fetchMediaBlobApi(memoryId, mediaId))
       .then((blob) => {
         if (!isCurrent) return;
         createdUrl = URL.createObjectURL(blob);

@@ -88,6 +88,22 @@ public class FamilyController {
         return ResponseEntity.ok(familyService.getMembers(patientId, userDetails.getUsername()));
     }
 
+    @GetMapping("/patients/{patientId}/invitations")
+    public ResponseEntity<List<InvitationResponse>> getPendingInvitations(
+            @PathVariable UUID patientId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(
+                familyService.getPendingInvitations(patientId, userDetails.getUsername()));
+    }
+
+    @DeleteMapping("/patients/{patientId}/members/me")
+    public ResponseEntity<Void> leaveCareCircle(
+            @PathVariable UUID patientId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        familyService.leaveCareCircle(patientId, userDetails.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
     @PatchMapping("/patients/{patientId}/members/{memberId}")
     public ResponseEntity<MemberResponse> updateMember(
             @PathVariable UUID patientId,

@@ -4,6 +4,7 @@ import com.memoraai.dto.AuthResponse;
 import com.memoraai.dto.LoginRequest;
 import com.memoraai.dto.RegisterRequest;
 import com.memoraai.dto.UserResponse;
+import com.memoraai.dto.UpdateTimezoneRequest;
 import com.memoraai.entity.Role;
 import com.memoraai.entity.User;
 import com.memoraai.exception.DuplicateResourceException;
@@ -14,6 +15,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.ZoneId;
 
 @Service
 public class AuthService {
@@ -67,5 +70,18 @@ public class AuthService {
         User user = userRepository.findByEmail(email.toLowerCase().trim())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
         return UserResponse.fromEntity(user);
+    }
+
+    @Transactional
+    public UserResponse updateTimezone(UpdateTimezoneRequest request, String email) {
+        User user = userRepository.findByEmail(email.toLowerCase().trim())
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+        try {
+            ZoneId.of(request.getTimezone().trim());
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("Invalid IANA timezone: " + request.getTimezone());
+        }
+        user.setTimezone(request.getTimezone().trim());
+        return UserResponse.fromEntity(userRepository.save(user));
     }
 }

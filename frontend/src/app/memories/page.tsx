@@ -7,22 +7,31 @@ import {
   createMemoryApi,
   deleteMemoryApi,
   getMemoriesApi,
+  createPatientMemoryApi,
+  deletePatientMemoryApi,
+  getPatientMemoriesApi,
   processMemoryApi,
   reindexMemoriesApi,
   searchMemoriesApi,
   updateMemoryApi,
+  updatePatientMemoryApi,
 } from '../../lib/memory';
+import { getPatients } from '../../lib/family';
+import type { Patient } from '../../types/phase8';
 import MediaGallery from '../../components/media/MediaGallery';
 import VoiceRecorderModal from '../../components/voice/VoiceRecorderModal';
 import {
   formatFileSize,
   MAX_MEDIA_PER_MEMORY,
   uploadMemoryMediaApi,
+  uploadPatientMemoryMediaApi,
   validateMediaFiles,
 } from '../../lib/media';
 
 export default function MemoryVaultPage() {
   const [memories, setMemories] = useState<Memory[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -130,7 +139,16 @@ export default function MemoryVaultPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getMemoriesApi();
+      let patientId = selectedPatientId;
+      if (!patientId) {
+        const availablePatients = await getPatients();
+        setPatients(availablePatients);
+        patientId = availablePatients[0]?.id || '';
+        if (patientId) setSelectedPatientId(patientId);
+      }
+      const data = patientId
+        ? await getPatientMemoriesApi(patientId)
+        : await getMemoriesApi();
       setMemories(data);
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -146,6 +164,16 @@ export default function MemoryVaultPage() {
   useEffect(() => {
     fetchMemories();
   }, []);
+
+  const createMemoryForSelectedPatient = async (data: import('../../types/memory').CreateMemoryData) =>
+    selectedPatientId
+      ? createPatientMemoryApi(selectedPatientId, data)
+      : createMemoryApi(data);
+
+  const updateMemoryForSelectedPatient = async (id: string, data: import('../../types/memory').UpdateMemoryData) =>
+    selectedPatientId
+      ? updatePatientMemoryApi(selectedPatientId, id, data)
+      : updateMemoryApi(id, data);
 
   const handleSemanticSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -232,7 +260,7 @@ export default function MemoryVaultPage() {
       // Step 1: Create memory if not already created in a previous attempt
       if (!memoryToUse) {
         setUploadStatusText('Creating memory...');
-        const newMemory = await createMemoryApi({
+        const newMemory = await createMemoryForSelectedPatient({
           title: title.trim(),
           content: content.trim(),
           category: category.trim() || undefined,
@@ -246,7 +274,9 @@ export default function MemoryVaultPage() {
       // Step 2: Upload attached images if any exist
       if (createFiles.length > 0) {
         setUploadStatusText(`Uploading ${createFiles.length} image${createFiles.length > 1 ? 's' : ''}...`);
-        await uploadMemoryMediaApi(memoryToUse.id, createFiles);
+        await (selectedPatientId
+          ? uploadPatientMemoryMediaApi(selectedPatientId, memoryToUse.id, createFiles)
+          : uploadMemoryMediaApi(memoryToUse.id, createFiles));
       }
 
       // Step 3: Success! Clean up and close modal
@@ -285,7 +315,14 @@ export default function MemoryVaultPage() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const updated = await updateMemoryApi(editingMemory.id, {
+      const updated = selectedPatientId
+        ? await updatePatientMemoryApi(selectedPatientId, editingMemory.id, {
+            title: title.trim(),
+            content: content.trim(),
+            category: category.trim() || undefined,
+            tags: tags.trim() || undefined,
+          })
+        : await updateMemoryApi(editingMemory.id, {
         title: title.trim(),
         content: content.trim(),
         category: category.trim() || undefined,
@@ -316,7 +353,11 @@ export default function MemoryVaultPage() {
     setIsSubmitting(true);
     setError(null);
     try {
-      await deleteMemoryApi(deletingMemoryId);
+      if (selectedPatientId) {
+        await deletePatientMemoryApi(selectedPatientId, deletingMemoryId);
+      } else {
+        await deleteMemoryApi(deletingMemoryId);
+      }
       setMemories((prev) => prev.filter((m) => m.id !== deletingMemoryId));
       if (viewingMemory?.id === deletingMemoryId) {
         setViewingMemory(null);
@@ -369,7 +410,7 @@ export default function MemoryVaultPage() {
       // Step 1: Save memory to DB via existing API if not already created
       if (!memoryToUse) {
         setUploadStatusText('Creating memory...');
-        const newMemory = await createMemoryApi({
+        const newMemory = await createMemoryForSelectedPatient({
           title: title.trim(),
           content: content.trim(),
           category: category.trim() || undefined,
@@ -383,7 +424,9 @@ export default function MemoryVaultPage() {
       // Step 2: Upload attached images if any exist
       if (createFiles.length > 0) {
         setUploadStatusText(`Uploading ${createFiles.length} image${createFiles.length > 1 ? 's' : ''}...`);
-        await uploadMemoryMediaApi(memoryToUse.id, createFiles);
+        await (selectedPatientId
+          ? uploadPatientMemoryMediaApi(selectedPatientId, memoryToUse.id, createFiles)
+          : uploadMemoryMediaApi(memoryToUse.id, createFiles));
       }
 
       // Clear preview URLs on successful upload
@@ -423,7 +466,7 @@ export default function MemoryVaultPage() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const updated = await updateMemoryApi(createdReviewMemory.id, {
+      const updated = await updateMemoryForSelectedPatient(createdReviewMemory.id, {
         title: createdReviewMemory.title,
         content: createdReviewMemory.content,
         category: reviewCategory.trim() || undefined,
@@ -456,7 +499,7 @@ export default function MemoryVaultPage() {
       const mem = memories.find((m) => m.id === memId);
       if (!mem) return;
 
-      const updated = await updateMemoryApi(memId, {
+      const updated = await updateMemoryForSelectedPatient(memId, {
         title: mem.title,
         content: mem.content,
         category: aiModalResult.result.suggestedCategory,
@@ -1908,7 +1951,7 @@ export default function MemoryVaultPage() {
             )}
 
             {/* MULTIMEDIA VAULT GALLERY */}
-            <MediaGallery memoryId={viewingMemory.id} />
+            <MediaGallery memoryId={viewingMemory.id} patientId={selectedPatientId || undefined} />
 
             {/* Footer Actions */}
             <div
@@ -2152,6 +2195,7 @@ export default function MemoryVaultPage() {
       {/* STANDALONE VOICE RECORDER MODAL */}
       <VoiceRecorderModal
         isOpen={isVoiceModalOpen}
+        patientId={selectedPatientId || undefined}
         onClose={() => setIsVoiceModalOpen(false)}
         onMemoryCreated={(newMemory) => {
           setMemories((prev) => [newMemory, ...prev]);
@@ -2163,6 +2207,7 @@ export default function MemoryVaultPage() {
       {/* VOICE DICTATE HELPER FOR CREATE MEMORY MODAL */}
       <VoiceRecorderModal
         isOpen={isVoiceDictateOpen}
+        patientId={selectedPatientId || undefined}
         onClose={() => setIsVoiceDictateOpen(false)}
         initialCategory={category || 'Reflections'}
         initialTags={tags || 'voice'}

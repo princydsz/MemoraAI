@@ -175,6 +175,65 @@ export function formatFileSize(bytes: number): string {
 /**
  * Fetches the list of attached media metadata for a specific memory.
  */
+export async function getPatientMemoryMediaApi(patientId: string, memoryId: string): Promise<MemoryMedia[]> {
+  const requestToken = getAuthToken();
+  if (!requestToken) throw new UnauthorizedError('Unauthorized: No authentication token found.');
+  const response = await fetch(`${API_BASE_URL}/api/family/patients/${patientId}/memories/${memoryId}/media`, {
+    headers: { Accept: 'application/json', Authorization: `******` },
+  });
+  if (response.status === 401) {
+    notifyUnauthorized(requestToken);
+    throw new UnauthorizedError('Unauthorized: Session has expired.');
+  }
+  const body = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(body?.message || body?.error || `Failed to fetch memory media (HTTP ${response.status}).`);
+  return body as MemoryMedia[];
+}
+
+export async function uploadPatientMemoryMediaApi(
+  patientId: string,
+  memoryId: string,
+  files: File[]
+): Promise<MemoryMedia[]> {
+  const requestToken = getAuthToken();
+  if (!requestToken) throw new UnauthorizedError('Unauthorized: No authentication token found.');
+  const formData = new FormData();
+  files.forEach(file => formData.append('files', file));
+  const response = await fetch(`${API_BASE_URL}/api/family/patients/${patientId}/memories/${memoryId}/media`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', Authorization: `******` },
+    body: formData,
+  });
+  if (response.status === 401) {
+    notifyUnauthorized(requestToken);
+    throw new UnauthorizedError('Unauthorized: Session has expired.');
+  }
+  const body = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(body?.message || body?.error || `Failed to upload memory media (HTTP ${response.status}).`);
+  return body as MemoryMedia[];
+}
+
+export async function deletePatientMemoryMediaApi(
+  patientId: string,
+  memoryId: string,
+  mediaId: string
+): Promise<void> {
+  const requestToken = getAuthToken();
+  if (!requestToken) throw new UnauthorizedError('Unauthorized: No authentication token found.');
+  const response = await fetch(
+    `${API_BASE_URL}/api/family/patients/${patientId}/memories/${memoryId}/media/${mediaId}`,
+    { method: 'DELETE', headers: { Authorization: `******` } }
+  );
+  if (response.status === 401) {
+    notifyUnauthorized(requestToken);
+    throw new UnauthorizedError('Unauthorized: Session has expired.');
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message || body?.error || `Failed to delete memory media (HTTP ${response.status}).`);
+  }
+}
+
 export async function getMemoryMediaApi(memoryId: string): Promise<MemoryMedia[]> {
   const requestToken = getAuthToken();
   if (!requestToken) {
@@ -267,6 +326,25 @@ export async function uploadMemoryMediaApi(memoryId: string, files: File[]): Pro
 /**
  * Fetches the binary image stream from the authenticated download endpoint.
  */
+export async function fetchPatientMediaBlobApi(
+  patientId: string,
+  memoryId: string,
+  mediaId: string
+): Promise<Blob> {
+  const requestToken = getAuthToken();
+  if (!requestToken) throw new UnauthorizedError('Unauthorized: No authentication token found.');
+  const response = await fetch(
+    `${API_BASE_URL}/api/family/patients/${patientId}/memories/${memoryId}/media/${mediaId}`,
+    { headers: { Authorization: `******` } }
+  );
+  if (response.status === 401) {
+    notifyUnauthorized(requestToken);
+    throw new UnauthorizedError('Unauthorized: Session has expired.');
+  }
+  if (!response.ok) throw new Error(`Failed to download memory media (HTTP ${response.status}).`);
+  return response.blob();
+}
+
 export async function fetchMediaBlobApi(memoryId: string, mediaId: string): Promise<Blob> {
   const requestToken = getAuthToken();
   if (!requestToken) {

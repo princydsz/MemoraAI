@@ -3,8 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Memory } from '../../types/memory';
 import { TranscribeResponse, VoiceRecordingState } from '../../types/voice';
-import { createMemoryApi } from '../../lib/memory';
-import { uploadMemoryMediaApi } from '../../lib/media';
+import { createMemoryApi, createPatientMemoryApi } from '../../lib/memory';
+import { uploadMemoryMediaApi, uploadPatientMemoryMediaApi } from '../../lib/media';
 import {
   formatDuration,
   getPreferredAudioMimeType,
@@ -17,6 +17,7 @@ import {
 
 export interface VoiceRecorderModalProps {
   isOpen: boolean;
+  patientId?: string;
   onClose: () => void;
   onMemoryCreated?: (memory: Memory) => void;
   onTranscriptReady?: (transcript: string) => void;
@@ -26,6 +27,7 @@ export interface VoiceRecorderModalProps {
 
 export default function VoiceRecorderModal({
   isOpen,
+  patientId,
   onClose,
   onMemoryCreated,
   onTranscriptReady,
@@ -313,7 +315,14 @@ export default function VoiceRecorderModal({
     try {
       // Step 1: Create Memory record if not already created in a previous partial attempt
       if (!memoryToUse) {
-        memoryToUse = await createMemoryApi({
+        memoryToUse = patientId
+          ? await createPatientMemoryApi(patientId, {
+              title: title.trim(),
+              content: content.trim(),
+              category: category.trim() || undefined,
+              tags: tags.trim() || undefined,
+            })
+          : await createMemoryApi({
           title: title.trim(),
           content: content.trim(),
           category: category.trim() || undefined,
@@ -338,7 +347,9 @@ export default function VoiceRecorderModal({
           type: baseType,
         });
 
-        await uploadMemoryMediaApi(memoryToUse.id, [audioFile]);
+        await (patientId
+          ? uploadPatientMemoryMediaApi(patientId, memoryToUse.id, [audioFile])
+          : uploadMemoryMediaApi(memoryToUse.id, [audioFile]));
       }
 
       // Step 3: Success!

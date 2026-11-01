@@ -7,6 +7,9 @@ import { useAuth } from '../../context/AuthContext';
 import { getMemoriesApi } from '../../lib/memory';
 import VoiceRecorderModal from '../../components/voice/VoiceRecorderModal';
 import { Memory } from '../../types/memory';
+import { getPatients } from '../../lib/family';
+import { getDailyRoutine, completeRoutine, uncompleteRoutine } from '../../lib/routines';
+import type { DailyRoutine, DailyRoutineItem, Patient } from '../../types/phase8';
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
@@ -16,6 +19,9 @@ export default function DashboardPage() {
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState<boolean>(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [dailyRoutine, setDailyRoutine] = useState<DailyRoutine | null>(null);
+  const [routinePatientId, setRoutinePatientId] = useState<string | null>(null);
+  const [routineLoading, setRoutineLoading] = useState(true);
 
   // Time & Date Orientation State
   const [greeting, setGreeting] = useState<string>('Welcome');
@@ -75,6 +81,30 @@ export default function DashboardPage() {
     fetchMemoryCount();
   }, []);
 
+  useEffect(() => {
+    const loadDashboardRoutine = async () => {
+      setRoutineLoading(true);
+      try {
+        const patients: Patient[] = await getPatients();
+        const patient = patients[0] ?? (user ? {
+          id: user.id,
+          name: user.name,
+          relationshipType: 'CHILD' as const,
+          permissionLevel: 'FULL_ACCESS' as const,
+          status: 'ACTIVE' as const,
+        } : null);
+        if (!patient) return;
+        setRoutinePatientId(patient.id);
+        setDailyRoutine(await getDailyRoutine(patient.id));
+      } catch {
+        setDailyRoutine(null);
+      } finally {
+        setRoutineLoading(false);
+      }
+    };
+    if (user) loadDashboardRoutine();
+  }, [user]);
+
   // Keyboard accessibility for Family modal
   useEffect(() => {
     if (!isFamilyModalOpen) return;
@@ -93,6 +123,20 @@ export default function DashboardPage() {
     setFeedbackMessage(
       `"${newMemory.title || 'Your memory'}" has been safely saved in your vault.`
     );
+  };
+
+  const toggleDashboardRoutine = async (item: DailyRoutineItem) => {
+    if (!routinePatientId) return;
+    try {
+      if (item.completed) {
+        await uncompleteRoutine(routinePatientId, item.id, dailyRoutine?.date);
+      } else {
+        await completeRoutine(routinePatientId, item.id, dailyRoutine?.date);
+      }
+      setDailyRoutine(await getDailyRoutine(routinePatientId, dailyRoutine?.date));
+    } catch (err) {
+      setFeedbackMessage(err instanceof Error ? err.message : 'Unable to update the routine.');
+    }
   };
 
   const scrollToSchedule = () => {
@@ -275,7 +319,9 @@ export default function DashboardPage() {
               <div className="patient-action-title-row">
                 <h2 className="patient-action-title">Today&apos;s Schedule</h2>
                 <span className="patient-action-badge patient-action-badge--highlight">
-                  3 Daily Routines
+                  {dailyRoutine
+                    ? `${dailyRoutine.morning.length + dailyRoutine.afternoon.length + dailyRoutine.evening.length} Daily Routines`
+                    : 'Loading routines'}
                 </span>
               </div>
               <p className="patient-action-desc">
@@ -298,7 +344,7 @@ export default function DashboardPage() {
               <div className="patient-action-title-row">
                 <h2 className="patient-action-title">My Family</h2>
                 <span className="patient-action-badge patient-action-badge--muted">
-                  Coming Soon
+                  Care Circle
                 </span>
               </div>
               <p className="patient-action-desc">
@@ -324,69 +370,38 @@ export default function DashboardPage() {
             </div>
 
             <div className="patient-demo-badge">
-              <span>ℹ️ Sample schedule</span>
-              <span>•</span>
-              <span>Routine syncing coming in Phase 12</span>
+              <span>{dailyRoutine?.date ? `Date: ${dailyRoutine.date}` : 'Loading schedule'}</span>
             </div>
           </div>
 
           <div className="patient-schedule-timeline">
-            {/* Morning Card */}
-            <article className="patient-timeline-card">
-              <div>
-                <div className="patient-timeline-period">
-                  <span className="patient-timeline-badge patient-action-badge--highlight">
-                    ☀️ Morning
-                  </span>
-                  <span className="patient-timeline-time">8:30 AM</span>
+            {routineLoading && <p>Loading today's routine...</p>}
+            {!routineLoading && dailyRoutine && [
+              ...dailyRoutine.morning,
+              ...dailyRoutine.afternoon,
+              ...dailyRoutine.evening,
+            ].map(item => (
+              <article className="patient-timeline-card" key={item.id}>
+                <div>
+                  <div className="patient-timeline-period">
+                    <span className="patient-timeline-badge">
+                      {item.period === 'MORNING' ? '☀️ Morning' : item.period === 'AFTERNOON' ? '🌤️ Afternoon' : '🌙 Evening'}
+                    </span>
+                    <span className="patient-timeline-time">{item.scheduledTime || 'Any time'}</span>
+                  </div>
+                  <h3 className="patient-timeline-title">{item.title}</h3>
+                  <p className="patient-timeline-desc">{item.description || 'No additional details.'}</p>
                 </div>
-                <h3 className="patient-timeline-title">Morning Walk &amp; Light Breakfast</h3>
-                <p className="patient-timeline-desc">
-                  Enjoy a warm cup of tea or water, take a peaceful stroll in natural morning light, and have a nourishing breakfast.
-                </p>
-              </div>
-              <div className="patient-timeline-tag">
-                <span>🌱 Gentle movement &amp; hydration</span>
-              </div>
-            </article>
-
-            {/* Afternoon Card */}
-            <article className="patient-timeline-card">
-              <div>
-                <div className="patient-timeline-period">
-                  <span className="patient-timeline-badge patient-action-badge--accent">
-                    🌤️ Afternoon
-                  </span>
-                  <span className="patient-timeline-time">1:30 PM</span>
-                </div>
-                <h3 className="patient-timeline-title">Music, Rest &amp; Photo Memories</h3>
-                <p className="patient-timeline-desc">
-                  Relax in a comfortable spot, listen to favorite soothing songs, or open your vault to look at cherished photos.
-                </p>
-              </div>
-              <div className="patient-timeline-tag">
-                <span>🎵 Soothing music &amp; relaxation</span>
-              </div>
-            </article>
-
-            {/* Evening Card */}
-            <article className="patient-timeline-card">
-              <div>
-                <div className="patient-timeline-period">
-                  <span className="patient-timeline-badge patient-action-badge--primary">
-                    🌙 Evening
-                  </span>
-                  <span className="patient-timeline-time">6:30 PM</span>
-                </div>
-                <h3 className="patient-timeline-title">Dinner &amp; Evening Reflection</h3>
-                <p className="patient-timeline-desc">
-                  Enjoy a peaceful dinner, check in with family or a caregiver, and tap &ldquo;Talk to Memora&rdquo; to share an evening thought.
-                </p>
-              </div>
-              <div className="patient-timeline-tag">
-                <span>✨ Reassurance &amp; daily recap</span>
-              </div>
-            </article>
+                <button
+                  type="button"
+                  className={item.completed ? 'secondary-button' : 'primary-button'}
+                  onClick={() => toggleDashboardRoutine(item)}
+                >
+                  {item.completed ? 'Uncomplete' : 'Complete'}
+                </button>
+              </article>
+            ))}
+            {!routineLoading && !dailyRoutine && <p>No routine could be loaded for this account.</p>}
           </div>
         </section>
 
@@ -457,7 +472,7 @@ export default function DashboardPage() {
           initialTags="daily reflection, voice"
         />
 
-        {/* Family & Care Circle Coming Soon Modal */}
+        {/* Family & Care Circle Modal */}
         {isFamilyModalOpen && (
           <div
             className="memory-modal-backdrop"
@@ -482,7 +497,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <span className="patient-demo-badge" style={{ marginBottom: '0.4rem' }}>
-                    In Active Development
+                    Care Circle
                   </span>
                   <h2 id="family-modal-title" style={{ margin: 0, fontSize: '1.45rem', letterSpacing: '-0.03em' }}>
                     Family &amp; Care Circle
@@ -492,13 +507,13 @@ export default function DashboardPage() {
 
               <div style={{ color: 'var(--text-muted)', fontSize: '1.05rem', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 <p style={{ margin: 0 }}>
-                  We are creating a dedicated space where your family members, loved ones, and designated caregivers can stay connected with you.
+                  Your Family dashboard shows Care Circle members, invitations, routines, appointments, memories and reminders.
                 </p>
                 <p style={{ margin: 0 }}>
-                  Once backend care circle synchronization is integrated by the team, your loved ones will be able to share photo memories, leave reassuring voice notes, and coordinate daily care routines right here.
+                  Use your patient's Care Circle to manage care with the permissions granted by the backend.
                 </p>
                 <div style={{ padding: '0.9rem 1.1rem', borderRadius: 'var(--radius-sm)', background: 'var(--surface-muted)', border: '1px solid var(--border)', fontSize: '0.95rem' }}>
-                  <strong style={{ color: 'var(--text)' }}>Coming in Phase 12:</strong> Shared memory albums, caregiver daily check-ins, and assisted memory prompts.
+                  <strong style={{ color: 'var(--text)' }}>Connected:</strong> Care Circle members, routines, appointments and reminders.
                 </div>
               </div>
 
@@ -517,7 +532,7 @@ export default function DashboardPage() {
                   onClick={() => setIsFamilyModalOpen(false)}
                   style={{ minHeight: '52px', padding: '0.75rem 1.8rem', fontSize: '1.05rem' }}
                 >
-                  Open Family Dashboard (Demo)
+                  Open Family Dashboard
                 </Link>
               </div>
             </div>

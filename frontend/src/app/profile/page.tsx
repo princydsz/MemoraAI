@@ -1,12 +1,30 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { useAuth } from '../../context/AuthContext';
+import { setStoredUser, updateTimezoneApi } from '../../lib/auth';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
+  const [timezone, setTimezone] = useState(user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+  const [timezoneStatus, setTimezoneStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.timezone) setTimezone(user.timezone);
+  }, [user?.timezone]);
+
+  const saveTimezone = async () => {
+    setTimezoneStatus(null);
+    try {
+      const updated = await updateTimezoneApi(timezone.trim());
+      if (user) setStoredUser({ ...user, timezone: updated.timezone });
+      setTimezoneStatus('Timezone saved.');
+    } catch (err) {
+      setTimezoneStatus(err instanceof Error ? err.message : 'Failed to save timezone.');
+    }
+  };
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return 'Not available';
@@ -65,6 +83,22 @@ export default function ProfilePage() {
               <span>Member since</span>
               <span>{formatDate(user?.createdAt)}</span>
             </div>
+            <div className="detail-row">
+              <span>Timezone</span>
+              <span>
+                <input
+                  className="form-input"
+                  value={timezone}
+                  onChange={(event) => setTimezone(event.target.value)}
+                  aria-label="Account timezone"
+                />
+              </span>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button type="button" className="primary-button" onClick={saveTimezone}>Save timezone</button>
+            {timezoneStatus && <span className="profile-meta">{timezoneStatus}</span>}
           </div>
 
           <div style={{ marginTop: '1.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>

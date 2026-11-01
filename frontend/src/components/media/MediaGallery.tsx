@@ -3,11 +3,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   deleteMemoryMediaApi,
+  deletePatientMemoryMediaApi,
   formatFileSize,
   getMemoryMediaApi,
+  getPatientMemoryMediaApi,
   isAudioMedia,
   MAX_MEDIA_PER_MEMORY,
   uploadMemoryMediaApi,
+  uploadPatientMemoryMediaApi,
   validateMediaFiles,
 } from '../../lib/media';
 import { MemoryMedia } from '../../types/media';
@@ -16,10 +19,11 @@ import AuthenticatedAudioPlayer from './AuthenticatedAudioPlayer';
 
 interface MediaGalleryProps {
   memoryId: string;
+  patientId?: string;
   onMediaCountChange?: (count: number) => void;
 }
 
-export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGalleryProps) {
+export default function MediaGallery({ memoryId, patientId, onMediaCountChange }: MediaGalleryProps) {
   const [mediaList, setMediaList] = useState<MemoryMedia[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -41,7 +45,9 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getMemoryMediaApi(memoryId);
+      const data = patientId
+        ? await getPatientMemoryMediaApi(patientId, memoryId)
+        : await getMemoryMediaApi(memoryId);
       setMediaList(data);
       if (onMediaCountChange) {
         onMediaCountChange(data.length);
@@ -66,7 +72,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
     setActivePreviewMedia(null);
     setDeletingMedia(null);
 
-    getMemoryMediaApi(memoryId)
+    (patientId ? getPatientMemoryMediaApi(patientId, memoryId) : getMemoryMediaApi(memoryId))
       .then((data) => {
         if (!isCurrent) return;
         setMediaList(data);
@@ -106,7 +112,9 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
 
     setIsUploading(true);
     try {
-      const uploaded = await uploadMemoryMediaApi(memoryId, filesArray);
+      const uploaded = patientId
+        ? await uploadPatientMemoryMediaApi(patientId, memoryId, filesArray)
+        : await uploadMemoryMediaApi(memoryId, filesArray);
       const updatedList = [...mediaList, ...uploaded];
       setMediaList(updatedList);
       setSuccessMsg(
@@ -132,7 +140,11 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
     setIsDeleting(true);
     setError(null);
     try {
-      await deleteMemoryMediaApi(memoryId, deletingMedia.id);
+      if (patientId) {
+        await deletePatientMemoryMediaApi(patientId, memoryId, deletingMedia.id);
+      } else {
+        await deleteMemoryMediaApi(memoryId, deletingMedia.id);
+      }
       const remaining = mediaList.filter((m) => m.id !== deletingMedia.id);
       setMediaList(remaining);
       if (onMediaCountChange) {
@@ -338,6 +350,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <AuthenticatedAudioPlayer
                               memoryId={memoryId}
+                              patientId={patientId}
                               mediaId={audioMedia.id}
                               fileName={audioMedia.fileName}
                               fileSize={audioMedia.fileSize}
@@ -412,6 +425,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
                           >
                             <AuthenticatedImage
                               memoryId={memoryId}
+                              patientId={patientId}
                               mediaId={media.id}
                               alt={media.fileName}
                               onClick={() => setActivePreviewMedia(media)}
@@ -596,6 +610,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
               {activePreviewMedia.contentType?.toLowerCase().startsWith('audio/') ? (
                 <AuthenticatedAudioPlayer
                   memoryId={memoryId}
+                  patientId={patientId}
                   mediaId={activePreviewMedia.id}
                   fileName={activePreviewMedia.fileName}
                   fileSize={activePreviewMedia.fileSize}
@@ -604,6 +619,7 @@ export default function MediaGallery({ memoryId, onMediaCountChange }: MediaGall
               ) : (
                 <AuthenticatedImage
                   memoryId={memoryId}
+                  patientId={patientId}
                   mediaId={activePreviewMedia.id}
                   alt={activePreviewMedia.fileName}
                   style={{
