@@ -15,4 +15,6 @@ export interface AskMemoryResponse {
   answer: string;
   sources: SourceMemory[];
   retrievedCount: number;
+  provider?: string;
+  model?: string;
 }

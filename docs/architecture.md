@@ -82,7 +82,7 @@ To maintain architectural transparency, system capabilities are classified as ei
 - **Collection Name:** `memories_v2`
 - **Embedding Model:** `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions)
 - **Distance Metric:** `Cosine`
-- **Relevance Threshold:** Default `0.35` (configurable via `QDRANT_SCORE_THRESHOLD`)
+- **Relevance Threshold:** Default `0.20` (configurable via `QDRANT_SCORE_THRESHOLD`)
 - **Indexing Pipeline:**
   1. Memory creation or update triggers asynchronous or synchronous embedding generation via `POST /embeddings` on `ai-service`.
   2. The resulting vector is stored in Qdrant with payload metadata (`userId`, `title`, `category`, `tags`).

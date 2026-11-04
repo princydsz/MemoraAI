@@ -91,7 +91,7 @@ public class MemoryServiceGraphSyncTest {
         ArgumentCaptor<List<String>> peopleCaptor = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<List<String>> placesCaptor = ArgumentCaptor.forClass(List.class);
 
-        verify(graphStoreService, times(1)).syncMemory(
+        verify(graphStoreService, timeout(3000).times(1)).syncMemory(
                 userCaptor.capture(),
                 memoryCaptor.capture(),
                 titleCaptor.capture(),
@@ -138,7 +138,7 @@ public class MemoryServiceGraphSyncTest {
         assertThat(updated).isNotNull();
         assertThat(updated.getTitle()).isEqualTo("Updated Memory in Rome");
 
-        verify(graphStoreService, times(2)).syncMemory(
+        verify(graphStoreService, timeout(3000).times(2)).syncMemory(
                 eq(testUser.getId()),
                 eq(created.getId()),
                 anyString(),
@@ -164,7 +164,7 @@ public class MemoryServiceGraphSyncTest {
 
         memoryService.deleteMemory(created.getId(), testUser.getEmail());
 
-        verify(graphStoreService, times(1)).deleteMemory(testUser.getId(), created.getId());
+        verify(graphStoreService, timeout(3000).times(1)).deleteMemory(testUser.getId(), created.getId());
     }
 
     @Test

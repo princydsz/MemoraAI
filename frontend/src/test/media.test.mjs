@@ -6,12 +6,15 @@ import {
   ALLOWED_MIME_TYPES,
   formatFileSize,
   MAX_FILE_SIZE_BYTES,
+  MAX_AUDIO_SIZE_BYTES,
   MAX_MEDIA_PER_MEMORY,
   validateMediaFiles,
   getMemoryMediaApi,
   uploadMemoryMediaApi,
   fetchMediaBlobApi,
   deleteMemoryMediaApi,
+  isAudioMedia,
+  isImageMedia,
 } from '../lib/media.ts';
 
 describe('Media Constants & Validation', () => {
@@ -94,6 +97,37 @@ describe('Media Constants & Validation', () => {
       assert.equal(res.valid, false);
       assert.match(res.error, /unsupported format/i);
     }
+  });
+
+  it('should validate allowed audio formats up to 25 MB', () => {
+    const webmAudio = { name: 'voice.webm', size: 5 * 1024 * 1024, type: 'audio/webm' };
+    const wavAudio = { name: 'memo.wav', size: 15 * 1024 * 1024, type: 'audio/wav' };
+    const mp3Audio = { name: 'dictation.mp3', size: 20 * 1024 * 1024, type: 'audio/mpeg' };
+
+    const res = validateMediaFiles([webmAudio, wavAudio, mp3Audio], 0);
+    assert.equal(res.valid, true);
+    assert.equal(res.error, undefined);
+  });
+
+  it('should reject audio exceeding 25 MiB', () => {
+    const oversizedAudio = {
+      name: 'long_lecture.webm',
+      size: 25 * 1024 * 1024 + 1,
+      type: 'audio/webm',
+    };
+    const res = validateMediaFiles([oversizedAudio], 0);
+    assert.equal(res.valid, false);
+    assert.match(res.error, /exceeds the maximum audio size limit of 25 MB/i);
+  });
+
+  it('should correctly identify audio media vs image media using helper functions', () => {
+    assert.equal(isAudioMedia({ contentType: 'audio/webm' }), true);
+    assert.equal(isAudioMedia({ contentType: 'audio/mp4' }), true);
+    assert.equal(isAudioMedia({ contentType: 'image/png' }), false);
+
+    assert.equal(isImageMedia({ contentType: 'image/jpeg' }), true);
+    assert.equal(isImageMedia({ contentType: 'image/webp' }), true);
+    assert.equal(isImageMedia({ contentType: 'audio/wav' }), false);
   });
 });
 

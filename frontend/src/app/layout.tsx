@@ -2,10 +2,15 @@ import './globals.css';
 import React from 'react';
 import { AuthProvider } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
+import VaultAssistant from '../components/VaultAssistant';
 
 export const metadata = {
   title: 'MemoraAI - Preserving Memories, Strengthening Connections',
   description: 'AI-powered memory companion for personal and family memories.',
+};
+
+export const viewport = {
+  themeColor: '#F7F3EE',
 };
 
 export default function RootLayout({
@@ -19,6 +24,7 @@ export default function RootLayout({
         <AuthProvider>
           <Navbar />
           {children}
+          <VaultAssistant />
         </AuthProvider>
       </body>
     </html>

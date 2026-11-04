@@ -1,6 +1,5 @@
 package com.memoraai.service;
 
-
 import com.memoraai.dto.AiProcessMemoryResponse;
 import com.memoraai.dto.AskMemoryRequest;
 import com.memoraai.dto.AskMemoryResponse;
@@ -12,21 +11,21 @@ import com.memoraai.dto.MemoryResponse;
 import com.memoraai.dto.MemorySearchResponse;
 import com.memoraai.dto.RagAnswerResponse;
 import com.memoraai.dto.ReindexResponse;
-import com.memoraai.exception.GraphServiceException;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import com.memoraai.dto.SourceMemoryResponse;
 import com.memoraai.dto.UpdateMemoryRequest;
 import com.memoraai.entity.Memory;
 import com.memoraai.entity.MemoryMedia;
 import com.memoraai.entity.User;
+import com.memoraai.exception.GraphServiceException;
 import com.memoraai.exception.ResourceNotFoundException;
 import com.memoraai.repository.MemoryMediaRepository;
 import com.memoraai.repository.MemoryRepository;
 import com.memoraai.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +39,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Service
@@ -54,6 +55,7 @@ public class MemoryService {
     private final MemoryMediaRepository memoryMediaRepository;
     private final StorageService storageService;
     private final GraphStoreService graphStoreService;
+    private final ExecutorService backgroundTaskExecutor = Executors.newFixedThreadPool(4);
 
     public MemoryService(MemoryRepository memoryRepository,
                          UserRepository userRepository,
@@ -78,6 +80,7 @@ public class MemoryService {
 
     @Transactional
     public MemoryResponse createMemory(CreateMemoryRequest request, String userEmail) {
+        long tStart = System.currentTimeMillis();
         User user = getAuthenticatedUser(userEmail);
 
         Memory memory = new Memory(
@@ -88,8 +91,14 @@ public class MemoryService {
                 request.getTags() != null ? request.getTags().trim() : null
         );
 
+        long tDbStart = System.currentTimeMillis();
         Memory savedMemory = memoryRepository.save(memory);
+        long tDb = System.currentTimeMillis() - tDbStart;
+
+        long tVectorStart = System.currentTimeMillis();
         vectorStoreService.indexMemory(savedMemory);
+        long tVector = System.currentTimeMillis() - tVectorStart;
+
         registerAfterCommitSync(
                 user.getId(),
                 savedMemory.getId(),
@@ -100,6 +109,11 @@ public class MemoryService {
                 savedMemory.getCreatedAt(),
                 savedMemory.getUpdatedAt()
         );
+
+        long tTotal = System.currentTimeMillis() - tStart;
+        log.info("[TIMING] Memory {} created in {}ms (db={}ms, vectorIndex={}ms, graphSync=async)",
+                savedMemory.getId(), tTotal, tDb, tVector);
+
         return MemoryResponse.fromEntity(savedMemory);
     }
 
@@ -203,11 +217,11 @@ public class MemoryService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    syncTask.run();
+                    backgroundTaskExecutor.submit(syncTask);
                 }
             });
         } else {
-            syncTask.run();
+            backgroundTaskExecutor.submit(syncTask);
         }
     }
 
@@ -224,11 +238,11 @@ public class MemoryService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    deleteTask.run();
+                    backgroundTaskExecutor.submit(deleteTask);
                 }
             });
         } else {
-            deleteTask.run();
+            backgroundTaskExecutor.submit(deleteTask);
         }
     }
 
@@ -285,27 +299,25 @@ public class MemoryService {
 
     @Transactional(readOnly = true)
     public AskMemoryResponse askQuestion(AskMemoryRequest request, String userEmail) {
-
+        long tStart = System.currentTimeMillis();
         User user = getAuthenticatedUser(userEmail);
         if (request == null || request.getQuestion() == null || request.getQuestion().trim().isEmpty()) {
             return new AskMemoryResponse("I don't have any memory recorded about that.", Collections.emptyList(), 0);
         }
 
         String question = request.getQuestion().trim();
-        List<VectorStoreService.VectorSearchResult> vectorResults = vectorStoreService.search(user.getId(), question, 20);
-        if (vectorResults.isEmpty()) {
-            return new AskMemoryResponse("I don't have any memory recorded about that.", Collections.emptyList(), 0);
-        }
+        long tSearchStart = System.currentTimeMillis();
+        List<VectorStoreService.VectorSearchResult> vectorResults = vectorStoreService.search(user.getId(), question, 5);
+        long tSearch = System.currentTimeMillis() - tSearchStart;
 
+        long tHydrateStart = System.currentTimeMillis();
         List<UUID> memoryIds = vectorResults.stream()
                 .map(VectorStoreService.VectorSearchResult::getMemoryId)
                 .collect(Collectors.toList());
 
-        List<Memory> memories = memoryRepository.findAllByIdInAndUserId(memoryIds, user.getId());
-        if (memories.isEmpty()) {
-            return new AskMemoryResponse("I don't have any memory recorded about that.", Collections.emptyList(), 0);
-        }
-
+        List<Memory> memories = memoryIds.isEmpty()
+                ? Collections.emptyList()
+                : memoryRepository.findAllByIdInAndUserId(memoryIds, user.getId());
         Map<UUID, Memory> memoryMap = memories.stream()
                 .collect(Collectors.toMap(Memory::getId, m -> m));
 
@@ -319,26 +331,23 @@ public class MemoryService {
                 sources.add(SourceMemoryResponse.fromEntity(memory, res.getScore()));
             }
         }
+        long tHydrate = System.currentTimeMillis() - tHydrateStart;
 
-        if (validatedMemories.isEmpty()) {
-            return new AskMemoryResponse("I don't have any memory recorded about that.", Collections.emptyList(), 0);
-        }
+        long tRagStart = System.currentTimeMillis();
+        RagAnswerResponse ragResponse = aiService.generateRagAnswer(question, validatedMemories);
+        long tRag = System.currentTimeMillis() - tRagStart;
 
-        String answer;
-        try {
-            RagAnswerResponse ragResponse = aiService.generateRagAnswer(question, validatedMemories);
-            answer = (ragResponse != null && ragResponse.getAnswer() != null)
-                    ? ragResponse.getAnswer()
-                    : "I don't have any memory recorded about that.";
-        } catch (Exception ex) {
-            String errorDetail = ex.getMessage();
-            if (errorDetail == null || errorDetail.trim().isEmpty()) {
-                errorDetail = "An error occurred while communicating with the AI service.";
-            }
-            answer = "AI generation unavailable: " + errorDetail;
-        }
+        long tTotal = System.currentTimeMillis() - tStart;
+        log.info("[TIMING] Ask AI completed in {}ms (vectorSearch={}ms, hydration={}ms, ragAnswer={}ms, sources={})",
+                tTotal, tSearch, tHydrate, tRag, sources.size());
 
-        return new AskMemoryResponse(answer, sources, sources.size());
+        return new AskMemoryResponse(
+                ragResponse.getAnswer(),
+                sources,
+                sources.size(),
+                ragResponse.getProvider(),
+                ragResponse.getModel()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -442,4 +451,3 @@ public class MemoryService {
         );
     }
 }
-

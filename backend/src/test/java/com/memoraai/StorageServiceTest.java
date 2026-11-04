@@ -262,4 +262,176 @@ public class StorageServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Failed to delete image from storage");
     }
+
+    @Test
+    @DisplayName("15. Valid WEBM audio signature is accepted and detects format correctly")
+    void testValidWebmAudioSignatureAccepted() {
+        byte[] webmHeader = new byte[]{
+                (byte) 0x1A, 0x45, (byte) 0xDF, (byte) 0xA3,
+                0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "voice.webm", "audio/webm", webmHeader
+        );
+
+        StorageService.MediaFormat format = storageService.validateMedia(file);
+        assertThat(format).isEqualTo(StorageService.MediaFormat.WEBM);
+        assertThat(format.getMimeType()).isEqualTo("audio/webm");
+        assertThat(format.getExtension()).isEqualTo("webm");
+        assertThat(format.isAudio()).isTrue();
+    }
+
+    @Test
+    @DisplayName("16. Valid WAV audio signature is accepted and detects format correctly")
+    void testValidWavAudioSignatureAccepted() {
+        byte[] wavHeader = new byte[]{
+                'R', 'I', 'F', 'F',
+                0x24, 0x00, 0x00, 0x00,
+                'W', 'A', 'V', 'E'
+        };
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "recording.wav", "audio/wav", wavHeader
+        );
+
+        StorageService.MediaFormat format = storageService.validateMedia(file);
+        assertThat(format).isEqualTo(StorageService.MediaFormat.WAV);
+        assertThat(format.getMimeType()).isEqualTo("audio/wav");
+        assertThat(format.getExtension()).isEqualTo("wav");
+        assertThat(format.isAudio()).isTrue();
+    }
+
+    @Test
+    @DisplayName("17. Valid MP3 audio signatures (ID3 and frame sync) are accepted")
+    void testValidMp3AudioSignaturesAccepted() {
+        byte[] id3Header = new byte[]{
+                'I', 'D', '3', 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
+        MockMultipartFile id3File = new MockMultipartFile(
+                "file", "speech.mp3", "audio/mpeg", id3Header
+        );
+        StorageService.MediaFormat format1 = storageService.validateMedia(id3File);
+        assertThat(format1).isEqualTo(StorageService.MediaFormat.MP3);
+        assertThat(format1.getMimeType()).isEqualTo("audio/mpeg");
+
+        byte[] frameSyncHeader = new byte[]{
+                (byte) 0xFF, (byte) 0xFB, (byte) 0x90, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
+        MockMultipartFile syncFile = new MockMultipartFile(
+                "file", "raw.mp3", "audio/mpeg", frameSyncHeader
+        );
+        StorageService.MediaFormat format2 = storageService.validateMedia(syncFile);
+        assertThat(format2).isEqualTo(StorageService.MediaFormat.MP3);
+    }
+
+    @Test
+    @DisplayName("18. Valid M4A audio signature is accepted and detects format correctly")
+    void testValidM4aAudioSignatureAccepted() {
+        byte[] m4aHeader = new byte[]{
+                0x00, 0x00, 0x00, 0x20,
+                'f', 't', 'y', 'p',
+                'M', '4', 'A', ' '
+        };
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "memo.m4a", "audio/mp4", m4aHeader
+        );
+
+        StorageService.MediaFormat format = storageService.validateMedia(file);
+        assertThat(format).isEqualTo(StorageService.MediaFormat.M4A);
+        assertThat(format.getMimeType()).isEqualTo("audio/mp4");
+        assertThat(format.getExtension()).isEqualTo("m4a");
+        assertThat(format.isAudio()).isTrue();
+    }
+
+    @Test
+    @DisplayName("19. Valid OGG audio signature is accepted and detects format correctly")
+    void testValidOggAudioSignatureAccepted() {
+        byte[] oggHeader = new byte[]{
+                'O', 'g', 'g', 'S',
+                0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "voice.ogg", "audio/ogg", oggHeader
+        );
+
+        StorageService.MediaFormat format = storageService.validateMedia(file);
+        assertThat(format).isEqualTo(StorageService.MediaFormat.OGG);
+        assertThat(format.getMimeType()).isEqualTo("audio/ogg");
+        assertThat(format.getExtension()).isEqualTo("ogg");
+        assertThat(format.isAudio()).isTrue();
+    }
+
+    @Test
+    @DisplayName("20. Audio file up to 25MB is accepted, larger than 25MB is rejected")
+    void testAudioFileSizeLimits() {
+        byte[] webmHeader = new byte[]{
+                (byte) 0x1A, 0x45, (byte) 0xDF, (byte) 0xA3,
+                0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
+        long validAudioSize = 20 * 1024 * 1024L; // 20MB (larger than 10MB image limit, within 25MB audio limit)
+        MockMultipartFile validAudioFile = new MockMultipartFile("file", "long_voice.webm", "audio/webm", webmHeader) {
+            @Override
+            public long getSize() {
+                return validAudioSize;
+            }
+        };
+
+        StorageService.MediaFormat format = storageService.validateMedia(validAudioFile);
+        assertThat(format).isEqualTo(StorageService.MediaFormat.WEBM);
+
+        long oversizedAudio = StorageService.MAX_AUDIO_SIZE + 1L; // > 25MB
+        MockMultipartFile oversizedAudioFile = new MockMultipartFile("file", "oversized.webm", "audio/webm", webmHeader) {
+            @Override
+            public long getSize() {
+                return oversizedAudio;
+            }
+        };
+
+        assertThatThrownBy(() -> storageService.validateMedia(oversizedAudioFile))
+                .isInstanceOf(InvalidMediaException.class)
+                .hasMessageContaining("exceeds the maximum allowed limit");
+    }
+
+    @Test
+    @DisplayName("21. Image larger than 10MB is rejected by validateMedia")
+    void testImageLargerThan10MbRejectedByValidateMedia() {
+        long oversizedImage = StorageService.MAX_FILE_SIZE + 1L; // > 10MB
+        MockMultipartFile oversizedFile = new MockMultipartFile("file", "huge.jpg", "image/jpeg", VALID_JPEG_HEADER) {
+            @Override
+            public long getSize() {
+                return oversizedImage;
+            }
+        };
+
+        assertThatThrownBy(() -> storageService.validateMedia(oversizedFile))
+                .isInstanceOf(InvalidMediaException.class)
+                .hasMessageContaining("Image file size");
+    }
+
+    @Test
+    @DisplayName("22. uploadMedia stores audio file in MinIO with audio content-type")
+    void testUploadMediaStoresAudioInMinio() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID memoryId = UUID.randomUUID();
+        byte[] webmHeader = new byte[]{
+                (byte) 0x1A, 0x45, (byte) 0xDF, (byte) 0xA3,
+                0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        };
+        MockMultipartFile file = new MockMultipartFile("file", "reflection.webm", "audio/webm", webmHeader);
+
+        StorageService.UploadResult result = storageService.uploadMedia(userId, memoryId, file);
+
+        assertThat(result).isNotNull();
+        assertThat(result.mediaId()).isNotNull();
+        assertThat(result.s3Key()).startsWith("users/" + userId + "/memories/" + memoryId + "/");
+        assertThat(result.s3Key()).endsWith(".webm");
+        assertThat(result.contentType()).isEqualTo("audio/webm");
+        assertThat(result.fileName()).isEqualTo("reflection.webm");
+
+        ArgumentCaptor<PutObjectArgs> captor = ArgumentCaptor.forClass(PutObjectArgs.class);
+        verify(minioClient, atLeastOnce()).putObject(captor.capture());
+
+        PutObjectArgs putArgs = captor.getValue();
+        assertThat(putArgs.bucket()).isEqualTo("memora-media-test");
+        assertThat(putArgs.contentType()).isEqualTo("audio/webm");
+    }
 }

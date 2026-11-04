@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { askMemoryApi } from '../../lib/memory';
 import { AskMemoryResponse } from '../../types/rag';
-import Link from 'next/link';
 
 export default function AskMemoraAiPage() {
   const [question, setQuestion] = useState<string>('');
@@ -42,285 +41,76 @@ export default function AskMemoraAiPage() {
 
   return (
     <ProtectedRoute>
-      <div style={{
-        maxWidth: '900px',
-        margin: '2rem auto',
-        padding: '0 1.5rem',
-        fontFamily: 'system-ui, -apple-system, sans-serif'
-      }}>
-        {/* Header */}
-        <div style={{ marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#ffffff',
-              fontWeight: 700,
-              fontSize: '1.1rem'
-            }}>
-              ?
+      <div className="ask-shell page-shell">
+        <section className="ask-panel panel">
+          <div className="page-header" style={{ marginBottom: '1rem' }}>
+            <div>
+              <span className="eyebrow">Ask a memory</span>
+              <h1 className="section-title" style={{ marginTop: '0.8rem', fontSize: 'clamp(2.2rem, 4vw, 3rem)' }}>
+                Ask MemoraAI
+              </h1>
             </div>
-            <h1 style={{ fontSize: '1.875rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-              Ask MemoraAI
-            </h1>
-          </div>
-          <p style={{ color: '#64748b', fontSize: '0.975rem', margin: 0 }}>
-            Query your memory vault using natural language. Grounded AI answers retrieved strictly from your personal memories.
-          </p>
-        </div>
-
-        {/* Input Area */}
-        <div style={{
-          backgroundColor: '#ffffff',
-          borderRadius: '12px',
-          border: '1px solid #e2e8f0',
-          padding: '1.5rem',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-          marginBottom: '1.5rem'
-        }}>
-          <label style={{ display: 'block', fontWeight: 600, color: '#334155', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
-            Your Question
-          </label>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <input
-              type="text"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !isLoading) {
-                  handleAsk();
-                }
-              }}
-              placeholder="Ask anything about your stored memories..."
-              style={{
-                flex: 1,
-                padding: '0.75rem 1rem',
-                borderRadius: '8px',
-                border: '1px solid #cbd5e1',
-                fontSize: '0.95rem',
-                outline: 'none',
-                transition: 'border-color 0.15s ease'
-              }}
-            />
-            <button
-              onClick={() => handleAsk()}
-              disabled={isLoading || !question.trim()}
-              style={{
-                backgroundColor: isLoading || !question.trim() ? '#94a3b8' : '#0284c7',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.75rem 1.5rem',
-                borderRadius: '8px',
-                fontWeight: 600,
-                fontSize: '0.95rem',
-                cursor: isLoading || !question.trim() ? 'not-allowed' : 'pointer',
-                transition: 'background-color 0.15s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}
-            >
-              {isLoading ? 'Thinking...' : 'Ask AI'}
-            </button>
           </div>
 
-          {/* Example Suggestion Chips */}
-          <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Try asking:</span>
-            {exampleQuestions.map((chip, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleAsk(chip)}
-                disabled={isLoading}
-                style={{
-                  backgroundColor: '#f1f5f9',
-                  color: '#0369a1',
-                  border: '1px solid #bae6fd',
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '9999px',
-                  fontSize: '0.825rem',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
+          <div className="prompt-box">
+            <label htmlFor="ask-question" style={{ fontWeight: 700, color: 'var(--text-muted)' }}>Your question</label>
+            <div className="prompt-row">
+              <input
+                id="ask-question"
+                className="input prompt-input"
+                type="text"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isLoading) {
+                    handleAsk();
+                  }
                 }}
-              >
-                {chip}
+                placeholder="Ask anything about your memories..."
+              />
+              <button type="button" className="primary-button" onClick={() => handleAsk()} disabled={isLoading || !question.trim()}>
+                {isLoading ? 'Thinking...' : 'Ask AI'}
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Error Alert */}
-        {error && (
-          <div style={{
-            backgroundColor: '#fef2f2',
-            border: '1px solid #fecaca',
-            color: '#b91c1c',
-            padding: '1rem 1.25rem',
-            borderRadius: '10px',
-            marginBottom: '1.5rem',
-            fontSize: '0.9rem'
-          }}>
-            {error}
-          </div>
-        )}
-
-        {/* Loading Spinner */}
-        {isLoading && (
-          <div style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-            padding: '3rem 2rem',
-            textAlign: 'center',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
-          }}>
-            <div style={{
-              display: 'inline-block',
-              width: '40px',
-              height: '40px',
-              border: '4px solid #e2e8f0',
-              borderTopColor: '#0284c7',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite'
-            }} />
-            <style>{`
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-            `}</style>
-            <p style={{ marginTop: '1rem', color: '#475569', fontWeight: 600, fontSize: '0.95rem' }}>
-              Searching your memory vault & generating grounded answer...
-            </p>
-          </div>
-        )}
-
-        {/* Response Answer Card */}
-        {!isLoading && response && (
-          <div>
-            <div style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '12px',
-              border: response.answer.startsWith('AI generation unavailable:')
-                ? '1px solid #f59e0b'
-                : '1px solid #0284c7',
-              padding: '1.75rem',
-              boxShadow: response.answer.startsWith('AI generation unavailable:')
-                ? '0 4px 12px rgba(245, 158, 11, 0.08)'
-                : '0 4px 12px rgba(2, 132, 199, 0.08)',
-              marginBottom: '1.5rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <span style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: response.answer.startsWith('AI generation unavailable:') ? '#b45309' : '#0284c7',
-                  backgroundColor: response.answer.startsWith('AI generation unavailable:') ? '#fef3c7' : '#e0f2fe',
-                  padding: '0.25rem 0.6rem',
-                  borderRadius: '4px'
-                }}>
-                  {response.answer.startsWith('AI generation unavailable:') ? 'AI Generation Notice' : 'Grounded AI Answer'}
-                </span>
-                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                  Sources used: <strong>{response.retrievedCount}</strong>
-                </span>
-              </div>
-
-              <div style={{
-                fontSize: '1.05rem',
-                lineHeight: '1.6',
-                color: '#0f172a',
-                whiteSpace: 'pre-wrap',
-                fontWeight: 500
-              }}>
-                {response.answer}
-              </div>
             </div>
 
-            {/* Source Memories Section */}
-            {response.sources && response.sources.length > 0 ? (
-              <div style={{ marginTop: '2rem' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#334155', marginBottom: '1rem' }}>
-                  Retrieved Source Memories ({response.sources.length})
-                </h3>
-                <div style={{ display: 'grid', gap: '1rem' }}>
-                  {response.sources.map((src) => (
-                    <div
-                      key={src.id}
-                      style={{
-                        backgroundColor: '#ffffff',
-                        borderRadius: '10px',
-                        border: '1px solid #e2e8f0',
-                        padding: '1.25rem',
-                        transition: 'box-shadow 0.15s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                        <Link
-                          href={`/memories`}
-                          style={{
-                            fontSize: '1rem',
-                            fontWeight: 700,
-                            color: '#0f172a',
-                            textDecoration: 'none'
-                          }}
-                        >
-                          {src.title}
-                        </Link>
-                        <span style={{
-                          fontSize: '0.75rem',
-                          backgroundColor: '#f0fdf4',
-                          color: '#166534',
-                          border: '1px solid #bbf7d0',
-                          padding: '0.15rem 0.5rem',
-                          borderRadius: '4px',
-                          fontWeight: 600
-                        }}>
-                          {(src.similarityScore * 100).toFixed(0)}% match
-                        </span>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: '#64748b', flexWrap: 'wrap' }}>
-                        {src.category && (
-                          <span style={{ backgroundColor: '#f1f5f9', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                            📁 {src.category}
-                          </span>
-                        )}
-                        {src.tags && (
-                          <span style={{ backgroundColor: '#f1f5f9', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                            🏷️ {src.tags}
-                          </span>
-                        )}
-                        <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#94a3b8' }}>
-                          Recorded: {new Date(src.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div style={{
-                backgroundColor: '#f8fafc',
-                borderRadius: '10px',
-                border: '1px dashed #cbd5e1',
-                padding: '1.5rem',
-                textAlign: 'center',
-                color: '#64748b',
-                fontSize: '0.9rem'
-              }}>
-                No matching memory sources met the semantic relevance threshold.
-              </div>
-            )}
+            <div className="chip-row">
+              {exampleQuestions.map((chip, idx) => (
+                <button key={idx} type="button" className="chip" onClick={() => handleAsk(chip)} disabled={isLoading}>
+                  {chip}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {error && <div className="error-box">{error}</div>}
+
+          {isLoading && (
+            <div className="response-card" style={{ textAlign: 'center' }}>
+              <p style={{ fontWeight: 700, color: 'var(--text-muted)' }}>Searching your memory vault and preparing an answer…</p>
+            </div>
+          )}
+
+          {!isLoading && response && (
+            <div className={`response-card ${response.answer.startsWith('AI generation unavailable:') ? 'response-card--notice' : ''}`}>
+              <p>{response.answer}</p>
+            </div>
+          )}
+        </section>
+
+        {!isLoading && response && response.sources && response.sources.length > 0 && (
+          <section className="source-panel panel">
+            <h3>Retrieved source memories ({response.sources.length})</h3>
+            <div className="source-list">
+              {response.sources.map((source) => (
+                <div key={source.id} className="source-item">
+                  <strong>{source.title}</strong>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                    {source.category || 'General'} · {source.createdAt ? new Date(source.createdAt).toLocaleDateString() : 'Recent'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
       </div>
     </ProtectedRoute>

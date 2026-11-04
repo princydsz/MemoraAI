@@ -68,6 +68,7 @@ public class MediaService {
      */
     @Transactional
     public List<MemoryMediaResponse> uploadMedia(UUID memoryId, List<MultipartFile> files, String userEmail) {
+        long tStart = System.currentTimeMillis();
         User user = getAuthenticatedUser(userEmail);
 
         if (files == null || files.isEmpty()) {
@@ -87,9 +88,9 @@ public class MediaService {
                     MAX_MEDIA_PER_MEMORY, currentCount, files.size()));
         }
 
-        // Pre-validate all image files (content-type magic bytes and size) before storing anything in MinIO
+        // Pre-validate all media files (content-type magic bytes and size) before storing anything in MinIO
         for (MultipartFile file : files) {
-            storageService.validateImage(file);
+            storageService.validateMedia(file);
         }
 
         // Upload to MinIO with all-or-nothing rollback compensation
@@ -118,7 +119,7 @@ public class MediaService {
 
         try {
             for (MultipartFile file : files) {
-                StorageService.UploadResult uploadResult = storageService.uploadImage(user.getId(), memoryId, file);
+                StorageService.UploadResult uploadResult = storageService.uploadMedia(user.getId(), memoryId, file);
                 uploadedResults.add(uploadResult);
             }
 
@@ -134,6 +135,10 @@ public class MediaService {
                 );
                 savedEntities.add(memoryMediaRepository.save(media));
             }
+
+            long tTotal = System.currentTimeMillis() - tStart;
+            log.info("[TIMING] Media upload completed in {}ms (files={}, memoryId={})",
+                    tTotal, files.size(), memoryId);
 
             return savedEntities.stream()
                     .map(MemoryMediaResponse::fromEntity)

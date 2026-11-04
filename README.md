@@ -27,11 +27,13 @@ MemoraAI distinguishes between **implemented core capabilities** (verified in th
 4. **Semantic Vector Search:**
    - Qdrant vector database integration with collection `memories_v2`.
    - Dense 384-dimensional neural embeddings using `sentence-transformers/all-MiniLM-L6-v2`.
-   - Cosine similarity matching with configurable relevance threshold (`0.35`).
+   - Cosine similarity matching with configurable relevance threshold (`0.20` by default).
    - On-demand vector re-indexing API (`POST /api/memories/reindex`).
 
 5. **Ask MemoraAI / Grounded RAG:**
-   - Retrieval-Augmented Generation answering user questions strictly grounded in their personal memories.
+   - Retrieval-Augmented Generation searches the signed-in user's full vault and provides the most relevant matching memories as context (up to five per answer).
+   - A floating Ask AI panel is available throughout the site for authenticated users, alongside the full `/ask` page.
+   - Vault retrieval is scoped to the authenticated user's ID; other users' memories are not available as context.
    - Dual provider support: Google Gemini 3.8 Flash (`gemini`) and deterministic mock provider (`mock`).
    - Prompt-injection defenses preventing untrusted memory content from overriding assistant instructions.
    - Error-string redaction ensuring API keys, secret parameters, and memory contents are never leaked in logs or error responses.
@@ -48,13 +50,7 @@ MemoraAI distinguishes between **implemented core capabilities** (verified in th
    - Built with Next.js 14 (App Router, TypeScript, CSS).
    - Authenticated dashboard with live metrics (Total Memories, Active Categories, Tagged Memories) backed by verified API data.
    - Interactive memory gallery with full-size preview modal.
-8. **Knowledge Graph Integration (Phase 10):**
-   - Neo4j 5.15.0 graph database integration using the official Neo4j Java Driver and parameterized Cypher queries.
-   - Deterministic entity extraction (`POST /extract-entities` on `ai-service`) for conservative recognition of people and places without requiring external LLM dependencies.
-   - Transactional after-commit synchronization connecting memories to categories, user-scoped tags, extracted people, and places.
-   - Cascade graph cleanup on memory deletion and orphan entity pruning.
-   - Secure, tenant-isolated knowledge graph API (`GET /api/memories/graph`) returning strongly typed nodes and relationships.
-   - Authenticated historical backfill and reconciliation endpoint (`POST /api/memories/graph/reindex`) with bounded batch pagination.
+   - Dedicated Ask MemoraAI portal (`/ask`) with example prompts and cited memory context, plus a persistent Ask AI panel across authenticated pages.
 
 ---
 
@@ -64,8 +60,9 @@ The following capabilities represent the expanded project vision and are activel
 
 - **🎙️ Whisper Speech-to-Text & Audio Ingestion:**
   Automated voice recording upload, speech transcription via OpenAI Whisper, and automatic ingestion into structured memories.
-- **🕸️ Interactive Graph Visualization & Family Relationship Mapping:**
-  Frontend visual graph explorer and multi-generational family tree mapping connecting relatives across collaborative vaults.
+- **🕸️ Neo4j Knowledge Graph Integration:**
+  Multi-generational family tree mapping and relational knowledge graph linking people, places, and events across life memories.
+  > *Note: The Neo4j container is provisioned in `docker-compose.yml` to prepare the infrastructure environment; however, backend graph schema, OGM/repositories, and graph querying are planned roadmap items and not yet integrated into the active application logic.*
 - **📊 Memory Confidence Scoring:**
   An algorithmic software score (0–100%) measuring memory consistency across conversations, detail alignment, and family member confirmations.
 - **👨‍👩‍👧 Family & Caregiver Sharing & Timelines:**
@@ -83,7 +80,7 @@ MemoraAI uses a resilient multi-service architecture orchestrated via Docker Com
 - **Relational Database:** PostgreSQL 15
 - **Vector Database:** Qdrant (384-dimensional dense embeddings, Cosine distance)
 - **Object Storage:** MinIO (Local S3-compatible storage with `mc` readiness checks)
-- **Knowledge Graph Database:** Neo4j 5 (Neo4j Community 5.15.0, official Java Driver, parameterized Cypher memory graph)
+- **Knowledge Graph Database:** Neo4j 5 *(Infrastructure provisioned for future roadmap)*
 
 ---
 

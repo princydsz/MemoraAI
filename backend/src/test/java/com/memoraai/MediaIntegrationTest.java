@@ -107,6 +107,11 @@ public class MediaIntegrationTest {
             'W', 'E', 'B', 'P'
     };
 
+    private static final byte[] VALID_WEBM_HEADER = new byte[]{
+            (byte) 0x1A, 0x45, (byte) 0xDF, (byte) 0xA3,
+            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+
     @BeforeEach
     void setUp() throws Exception {
         memoryMediaRepository.deleteAll();
@@ -571,5 +576,109 @@ public class MediaIntegrationTest {
 
         // Crucial assertion: Total media count in database MUST be exactly 5, never 7!
         assertThat(memoryMediaRepository.countByMemoryId(memoryA.getId())).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("21. POST /api/memories/{memoryId}/media successfully uploads voice audio (WebM) and persists metadata")
+    void testSuccessfulVoiceAudioUpload() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "files", "voice_reflection.webm", "audio/webm", VALID_WEBM_HEADER
+        );
+
+        mockMvc.perform(multipart("/api/memories/" + memoryA.getId() + "/media")
+                        .file(file)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenA))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").isNotEmpty())
+                .andExpect(jsonPath("$[0].memoryId").value(memoryA.getId().toString()))
+                .andExpect(jsonPath("$[0].fileName").value("voice_reflection.webm"))
+                .andExpect(jsonPath("$[0].contentType").value("audio/webm"))
+                .andExpect(jsonPath("$[0].fileSize").value(VALID_WEBM_HEADER.length))
+                .andExpect(jsonPath("$[0].createdAt").isNotEmpty())
+                .andExpect(jsonPath("$[0].s3Key").doesNotExist());
+
+        List<MemoryMedia> mediaList = memoryMediaRepository.findAllByMemoryId(memoryA.getId());
+        assertThat(mediaList).hasSize(1);
+        assertThat(mediaList.get(0).getFileName()).isEqualTo("voice_reflection.webm");
+        assertThat(mediaList.get(0).getContentType()).isEqualTo("audio/webm");
+        assertThat(mediaList.get(0).getS3Key()).startsWith("users/" + userA.getId() + "/memories/" + memoryA.getId() + "/");
+        assertThat(mediaList.get(0).getS3Key()).endsWith(".webm");
+
+        ArgumentCaptor<PutObjectArgs> captor = ArgumentCaptor.forClass(PutObjectArgs.class);
+        verify(minioClient, atLeastOnce()).putObject(captor.capture());
+        assertThat(captor.getValue().contentType()).isEqualTo("audio/webm");
+    }
+
+    @Test
+    @DisplayName("22. GET /api/memories/{memoryId}/media/{mediaId} streams verified audio with correct Content-Type")
+    void testSuccessfulAudioStreamRetrieval() throws Exception {
+        MemoryMedia media = memoryMediaRepository.save(
+                new MemoryMedia(memoryA, userA, "voice_memo.webm", "audio/webm", (long) VALID_WEBM_HEADER.length, "key-voice-audio")
+        );
+
+        GetObjectResponse mockResponse = mock(GetObjectResponse.class);
+        ByteArrayInputStream bais = new ByteArrayInputStream(VALID_WEBM_HEADER);
+        when(mockResponse.read(any(byte[].class), anyInt(), anyInt()))
+                .thenAnswer(inv -> bais.read(inv.getArgument(0), inv.getArgument(1), inv.getArgument(2)));
+        when(mockResponse.read(any(byte[].class)))
+                .thenAnswer(inv -> bais.read(inv.getArgument(0)));
+        when(mockResponse.read())
+                .thenAnswer(inv -> bais.read());
+        when(mockResponse.transferTo(any(java.io.OutputStream.class)))
+                .thenAnswer(inv -> {
+                    java.io.OutputStream os = inv.getArgument(0);
+                    os.write(VALID_WEBM_HEADER);
+                    return (long) VALID_WEBM_HEADER.length;
+                });
+        when(minioClient.getObject(any(GetObjectArgs.class))).thenReturn(mockResponse);
+
+        mockMvc.perform(get("/api/memories/" + memoryA.getId() + "/media/" + media.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "audio/webm"))
+                .andExpect(header().string("Content-Length", String.valueOf(VALID_WEBM_HEADER.length)))
+                .andExpect(header().string("Content-Disposition", "inline; filename=\"voice_memo.webm\""))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "private, no-store"))
+                .andExpect(content().bytes(VALID_WEBM_HEADER));
+    }
+
+    @Test
+    @DisplayName("23. User isolation: User B cannot download User A's audio recording (returns 404)")
+    void testUserIsolation_DownloadOtherUsersAudioReturns404() throws Exception {
+        MemoryMedia audioMedia = memoryMediaRepository.save(
+                new MemoryMedia(memoryA, userA, "secret_audio.webm", "audio/webm", 1024L, "key-secret-audio")
+        );
+
+        mockMvc.perform(get("/api/memories/" + memoryA.getId() + "/media/" + audioMedia.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenB))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("Not Found"));
+
+        verify(minioClient, never()).getObject(any(GetObjectArgs.class));
+    }
+
+    @Test
+    @DisplayName("24. POST upload rejects audio larger than 25MB with HTTP 400")
+    void testUploadOversizedAudioFileRejected() throws Exception {
+        long oversized = StorageService.MAX_AUDIO_SIZE + 1L; // > 25MB
+        MockMultipartFile oversizedAudio = new MockMultipartFile(
+                "files", "giant.webm", "audio/webm", VALID_WEBM_HEADER
+        ) {
+            @Override
+            public long getSize() {
+                return oversized;
+            }
+        };
+
+        mockMvc.perform(multipart("/api/memories/" + memoryA.getId() + "/media")
+                        .file(oversizedAudio)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenA))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Invalid Media"))
+                .andExpect(jsonPath("$.message", containsString("exceeds the maximum allowed limit")));
+
+        assertThat(memoryMediaRepository.countByMemoryId(memoryA.getId())).isEqualTo(0);
     }
 }
